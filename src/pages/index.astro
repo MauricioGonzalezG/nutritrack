@@ -1,0 +1,390 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="NutriTrack — Seguimiento de alimentación">
+  <div class="app">
+    <!-- ===== Header ===== -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Nutri<span>Track</span></h1>
+          <p id="date-full">Hoy</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <nav class="date-nav" aria-label="Navegación de fecha">
+          <button class="icon-btn" id="btn-prev-day" aria-label="Día anterior">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <span class="date-nav-label" id="date-label">Hoy</span>
+          <button class="icon-btn" id="btn-next-day" aria-label="Día siguiente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </nav>
+        <button class="btn-ghost" id="btn-today">Hoy</button>
+        <button class="btn-ghost" id="btn-profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Mi perfil
+        </button>
+        <button class="btn-ghost" id="btn-settings" aria-label="Configurar objetivos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Objetivos
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== Banner: completar perfil ===== -->
+    <div class="profile-banner hidden" id="profile-banner">
+      <span class="banner-emoji">👋</span>
+      <div class="banner-text">
+        <b>Personaliza tu experiencia</b>
+        <p>Completa tu perfil (edad, peso, altura, actividad) para recibir análisis y retos adaptados a tu colesterol y triglicéridos.</p>
+      </div>
+      <button class="btn-primary" id="btn-complete-profile">Completar perfil</button>
+      <button class="icon-btn" id="btn-dismiss-banner" aria-label="Cerrar aviso">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- ===== Contenido ===== -->
+    <main class="grid">
+      <!-- Columna izquierda: resumen -->
+      <div class="col">
+        <section class="card ring-wrap">
+          <h2 class="card-title">Calorías de hoy</h2>
+          <div class="ring">
+            <svg viewBox="0 0 200 200">
+              <defs>
+                <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#34d399" />
+                  <stop offset="100%" stop-color="#a3e635" />
+                </linearGradient>
+              </defs>
+              <circle class="ring-bg" cx="100" cy="100" r="84" />
+              <circle class="ring-progress" id="ring-progress" cx="100" cy="100" r="84" />
+            </svg>
+            <div class="ring-center">
+              <span class="ring-flame">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>
+              </span>
+              <span class="ring-kcal" id="ring-kcal">0</span>
+              <span class="ring-goal" id="ring-goal">de 2.000 kcal</span>
+              <span class="ring-remaining" id="ring-remaining">2.000 kcal restantes</span>
+            </div>
+          </div>
+          <div class="ring-stats">
+            <div class="ring-stat"><b id="stat-consumed">0</b><span>Consumidas</span></div>
+            <div class="ring-stat"><b id="stat-goal">2.000</b><span>Objetivo</span></div>
+            <div class="ring-stat"><b id="stat-remaining">2.000</b><span>Restantes</span></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">Macronutrientes</h2>
+          <div id="macros"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-title-row">
+            <h2 class="card-title">Salud cardiovascular</h2>
+            <span class="focus-badge" id="focus-badge">General</span>
+          </div>
+          <div id="cardio"></div>
+          <p class="card-note" id="cardio-note">Límites calculados según tu objetivo calórico y enfoque de salud.</p>
+        </section>
+
+        <section class="card" id="labs-card">
+          <div class="card-title-row">
+            <h2 class="card-title">Exámenes de sangre</h2>
+            <div class="lab-actions">
+              <span class="lab-date" id="lab-date"></span>
+              <button class="btn-ghost btn-xs" id="btn-edit-labs">Editar</button>
+            </div>
+          </div>
+          <div id="labs"></div>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">Últimos 7 días</h2>
+          <div class="week-chart" id="week-chart"></div>
+        </section>
+      </div>
+
+      <!-- Columna derecha: retos + comidas -->
+      <div class="col">
+        <section class="card" id="challenges-card">
+          <div class="card-title-row">
+            <h2 class="card-title">Retos de hoy</h2>
+            <span class="streak-badge" id="streak-badge">🔥 0 días</span>
+          </div>
+          <ul class="challenge-list" id="challenge-list"></ul>
+          <div class="weekly" id="weekly"></div>
+        </section>
+
+        <div id="meals" class="col" style="gap: 20px;"></div>
+      </div>
+    </main>
+
+    <!-- ===== Plan de dieta recomendado ===== -->
+    <section class="card plan-card" id="plan-section">
+      <div class="card-title-row">
+        <h2 class="card-title">Tu plan recomendado</h2>
+        <span class="focus-badge" id="plan-basis">según tus exámenes</span>
+      </div>
+      <div class="plan-grid">
+        <div class="plan-col">
+          <h3 class="plan-heading good">✅ Prioriza</h3>
+          <div class="plan-chips" id="plan-good"></div>
+        </div>
+        <div class="plan-col">
+          <h3 class="plan-heading limit">⚠️ Limita</h3>
+          <div class="plan-chips" id="plan-limit"></div>
+        </div>
+      </div>
+      <p class="card-note" id="plan-note"></p>
+    </section>
+
+    <!-- ===== Análisis personalizado ===== -->
+    <section class="card analysis-card" id="analysis-section">
+      <h2 class="card-title">Tu análisis personalizado</h2>
+      <ul class="insights" id="insights"></ul>
+      <p class="disclaimer">⚕️ Orientativo y educativo: no sustituye el consejo de tu médico. Ante resultados de colesterol o triglicéridos altos, consulta a un profesional.</p>
+    </section>
+  </div>
+
+  <!-- ===== Modal: añadir alimento ===== -->
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modal-title">Añadir alimento</h2>
+        <button class="icon-btn" id="modal-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="meal-pills" id="meal-pills"></div>
+
+        <div class="tabs">
+          <button class="tab active" id="tab-buscar">🔍 Buscar alimento</button>
+          <button class="tab" id="tab-custom">✏️ Personalizado</button>
+        </div>
+
+        <!-- Panel búsqueda -->
+        <div id="panel-buscar" style="display: contents;">
+          <div class="search-box">
+            <input type="text" id="food-search" placeholder="Buscar: pollo, arroz, manzana…" autocomplete="off" />
+          </div>
+          <div class="food-list" id="food-list"></div>
+          <div class="selection-panel hidden" id="selection-panel">
+            <span class="sel-emoji" id="sel-emoji">🍗</span>
+            <div class="sel-info">
+              <span class="sel-name" id="sel-name">Alimento</span>
+              <span class="sel-serving" id="sel-serving">100 g</span>
+            </div>
+            <div class="qty-stepper">
+              <button id="qty-minus" aria-label="Menos">−</button>
+              <span class="qty-value" id="qty-value">1</span>
+              <button id="qty-plus" aria-label="Más">+</button>
+            </div>
+            <span class="sel-kcal" id="sel-kcal">0 kcal</span>
+          </div>
+          <button class="btn-primary" id="btn-confirm-add">Añadir al registro</button>
+        </div>
+
+        <!-- Panel personalizado -->
+        <div id="panel-custom" class="hidden">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="custom-name">Nombre</label>
+              <input type="text" id="custom-name" placeholder="Ej: Mi receta casera" />
+            </div>
+            <div class="field">
+              <label for="custom-kcal">Calorías (kcal) *</label>
+              <input type="number" id="custom-kcal" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-protein">Proteínas (g)</label>
+              <input type="number" id="custom-protein" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-carbs">Carbohidratos (g)</label>
+              <input type="number" id="custom-carbs" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-fat">Grasas (g)</label>
+              <input type="number" id="custom-fat" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-satfat">Grasa saturada (g)</label>
+              <input type="number" id="custom-satfat" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-fiber">Fibra (g)</label>
+              <input type="number" id="custom-fiber" min="0" placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="custom-sugar">Azúcares (g)</label>
+              <input type="number" id="custom-sugar" min="0" placeholder="0" />
+            </div>
+          </div>
+          <p class="form-error" id="custom-error"></p>
+          <button class="btn-primary" id="btn-confirm-custom">Añadir alimento personalizado</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: objetivos ===== -->
+  <div class="modal" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-head">
+        <h2 id="settings-title">Objetivos diarios</h2>
+        <button class="icon-btn" id="settings-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="goal-calories">Calorías (kcal)</label>
+            <input type="number" id="goal-calories" min="1" />
+          </div>
+          <div class="field">
+            <label for="goal-protein">Proteínas (g)</label>
+            <input type="number" id="goal-protein" min="1" />
+          </div>
+          <div class="field">
+            <label for="goal-carbs">Carbohidratos (g)</label>
+            <input type="number" id="goal-carbs" min="1" />
+          </div>
+          <div class="field">
+            <label for="goal-fat">Grasas (g)</label>
+            <input type="number" id="goal-fat" min="1" />
+          </div>
+        </div>
+        <p class="field-hint">Tip: en “Mi perfil” puedes calcular objetivos sugeridos según tu cuerpo y actividad.</p>
+        <button class="btn-primary" id="btn-save-goals">Guardar objetivos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: exámenes de sangre ===== -->
+  <div class="modal" id="labs-modal" role="dialog" aria-modal="true" aria-labelledby="labs-title">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-head">
+        <h2 id="labs-title">Exámenes de sangre</h2>
+        <button class="icon-btn" id="labs-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="lab-date-input">Fecha del examen</label>
+            <input type="date" id="lab-date-input" />
+          </div>
+          <div class="field">
+            <label for="lab-ct">Colesterol total (mg/dl)</label>
+            <input type="number" id="lab-ct" min="0" step="0.1" placeholder="200" />
+          </div>
+          <div class="field">
+            <label for="lab-ldl">LDL (mg/dl)</label>
+            <input type="number" id="lab-ldl" min="0" step="0.1" placeholder="100" />
+          </div>
+          <div class="field">
+            <label for="lab-hdl">HDL (mg/dl)</label>
+            <input type="number" id="lab-hdl" min="0" step="0.1" placeholder="45" />
+          </div>
+          <div class="field">
+            <label for="lab-tg">Triglicéridos (mg/dl)</label>
+            <input type="number" id="lab-tg" min="0" step="0.1" placeholder="150" />
+          </div>
+          <div class="field">
+            <label for="lab-vldl">VLDL (mg/dl, opcional)</label>
+            <input type="number" id="lab-vldl" min="0" step="0.1" placeholder="—" />
+          </div>
+          <div class="field">
+            <label for="lab-index">Índice aterogénico (opcional)</label>
+            <input type="number" id="lab-index" min="0" step="0.01" placeholder="CT ÷ HDL" />
+          </div>
+        </div>
+        <p class="field-hint">Estos valores son tu punto de partida: los retos y el análisis se ajustan a ellos. El índice se calcula solo si lo dejas vacío.</p>
+        <button class="btn-primary" id="btn-save-labs">Guardar exámenes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: perfil ===== -->
+  <div class="modal" id="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="profile-title">Mi perfil</h2>
+        <button class="icon-btn" id="profile-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field">
+            <label for="pf-sex">Sexo</label>
+            <select id="pf-sex">
+              <option value="hombre">Hombre</option>
+              <option value="mujer">Mujer</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pf-age">Edad</label>
+            <input type="number" id="pf-age" min="10" max="100" placeholder="30" />
+          </div>
+          <div class="field">
+            <label for="pf-height">Altura (cm)</label>
+            <input type="number" id="pf-height" min="120" max="230" placeholder="170" />
+          </div>
+          <div class="field">
+            <label for="pf-weight">Peso (kg)</label>
+            <input type="number" id="pf-weight" min="35" max="300" step="0.1" placeholder="70" />
+          </div>
+          <div class="field full">
+            <label for="pf-activity">Nivel de actividad</label>
+            <select id="pf-activity"></select>
+          </div>
+          <div class="field full">
+            <label for="pf-focus">Mi enfoque de salud</label>
+            <select id="pf-focus"></select>
+          </div>
+        </div>
+
+        <div class="profile-summary hidden" id="profile-summary"></div>
+        <button class="btn-ghost" id="btn-apply-suggested" style="width: 100%; justify-content: center;">✨ Aplicar objetivos sugeridos a mi plan</button>
+
+        <div class="sync-section">
+          <h3 class="sync-title">☁️ Sincronización entre dispositivos</h3>
+          <p class="sync-status" id="sync-status">Comprobando…</p>
+          <div class="sync-code-row">
+            <div class="sync-code" id="sync-code">····-····</div>
+            <button class="btn-ghost" id="btn-copy-code">Copiar</button>
+          </div>
+          <p class="field-hint">En tu celular abre la app y vincula este código para ver los mismos datos.</p>
+          <div class="sync-link-row">
+            <input type="text" id="link-code-input" placeholder="Código de otro dispositivo (XXXX-XXXX)" autocomplete="off" />
+            <button class="btn-primary" id="btn-link-device">Vincular</button>
+          </div>
+          <p class="form-error" id="link-error"></p>
+        </div>
+
+        <button class="btn-primary" id="btn-save-profile">Guardar perfil</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import '../scripts/app';
+  </script>
+</Layout>

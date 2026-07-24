@@ -1,0 +1,16 @@
+{
+  "name": "nutritrack",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "App web moderna para seguimiento de alimentación y calorías",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^11.0.3",
+    "@libsql/client": "^0.17.4",
+    "astro": "7.1.3"
+  }
+}

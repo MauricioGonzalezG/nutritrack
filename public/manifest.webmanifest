@@ -1,0 +1,17 @@
+{
+  "name": "NutriTrack",
+  "short_name": "NutriTrack",
+  "description": "Seguimiento de alimentación, calorías y salud cardiovascular",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090b",
+  "theme_color": "#07090b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

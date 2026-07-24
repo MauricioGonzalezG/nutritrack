@@ -89,15 +89,56 @@ export type FoodRating = 'good' | 'limit' | 'neutral';
 
 /** Alimentos que conviene limitar con LDL o triglicéridos altos. */
 const LIMIT_IDS = new Set([
+  // Internacionales
   'carne-res', 'cerdo', 'jamon', 'hamburguesa', 'burrito', 'pizza', 'papas-fritas', 'nuggets',
   'refresco', 'jugo-naranja', 'cerveza', 'vino', 'azucar', 'miel', 'galletas', 'brownie',
   'chips', 'cereal', 'donut', 'helado', 'chocolate', 'mantequilla',
+  // Embutidos andinos
+  'chorizo-antioqueno', 'longaniza', 'morcilla-sangre', 'butifarra', 'tocineta',
+  'chicharron', 'chicharron-prensado', 'salchicha', 'mortadela',
+  // Platos típicos altos en grasa saturada
+  'bandeja-paisa', 'lechona', 'tamal-tolimense',
+  // Dulces típicos
+  'arequipe', 'leche-condensada', 'bocadillo-arequipe', 'milhojas', 'torta-chocolate',
+  'cocadas', 'rosquilla', 'natilla', 'torta-banano', 'cholao', 'mazamorra-maracuya',
+  'arroz-dulce', 'brevas-arequipe', 'postre-natas',
+  // Bebidas con azúcar añadido
+  'panela', 'agua-panela', 'agua-panela-queso', 'canelazo', 'chicha', 'champus', 'guarapo',
+  // Callejeros
+  'pandebono', 'pan-de-yuca', 'pandequeso', 'bunuelo', 'achiras', 'oblea', 'mantecada',
+  'arepa-huevo', 'arepa-queso', 'empanada-antioquena', 'empanada-valluna',
+  'colada-maicena', 'huevos-revueltos',
+  // Plátano maduro frito
+  'platano-maduro', 'yuca-frita', 'platanitos',
 ]);
 
 /** Alimentos aliados del perfil lipídico (fibra, omega-3, grasas insaturadas). */
 const GOOD_IDS = new Set([
-  'salmon', 'atun', 'avena', 'frijoles', 'lentejas', 'almendras', 'nueces', 'aguacate',
-  'aceite-oliva', 'brocoli', 'espinaca', 'quinoa', 'hummus', 'manzana', 'fresas', 'ensalada',
+  // Proteínas
+  'salmon', 'atun', 'sardina', 'trucha', 'tilapia', 'mojarra', 'camaron',
+  // Fibra y granos
+  'avena', 'frijoles', 'lentejas', 'garbanzo', 'frijol-rojo', 'frijol-blanco', 'soja',
+  'arveja-verde', 'habas', 'quinoa', 'cebada', 'centeno', 'arroz-integral', 'chia', 'linaza',
+  // Frutos secos
+  'almendras', 'nueces', 'pistachos', 'castanas-brasil', 'avellana', 'pinones',
+  'semillas-girasol', 'mani',
+  // Verduras
+  'brocoli', 'espinaca', 'acelgas', 'lechuga', 'col', 'pimenton', 'apio', 'pepino',
+  'champinones', 'berenjena', 'chayote', 'tomate', 'tomate-arbol', 'ahuyama', 'calabacin',
+  'ensalada', 'repollo', 'rabanos', 'remolacha',
+  // Frutas andinas
+  'manzana', 'fresas', 'aguacate', 'lulo', 'mora', 'gulupa', 'curuba', 'pitahaya',
+  'feijoa', 'uchuva', 'carambolo', 'guanabana', 'papaya', 'pina', 'mango',
+  'granadilla', 'kiwi', 'arandanos', 'pera', 'ciruela', 'durazno', 'mandarina',
+  'maracuya', 'frutilla', 'chontaduro', 'naranja',
+  // Grasas saludables
+  'aceite-oliva',
+  // Legumbres andinas (platos)
+  'hummus', 'frijoles-antioquenos', 'frijolada-boyacense', 'ajiaco', 'sancocho-pollo',
+  'sancocho-res', 'sancocho-pescado', 'cuchuco', 'mute-santandereano', 'mondongo',
+  'calentado-paisa',
+  // Lácteos
+  'kumis', 'suero', 'cuajada',
 ]);
 
 /** Frutas enteras: su azúcar natural va acompañada de fibra, no se penaliza. */

@@ -42,6 +42,20 @@ import {
 import { generateInsights } from './analysis';
 import { getSyncCode, initSync, isRemote, linkDevice, pushData, pushDelete, pushEntry } from './sync';
 import {
+  DEFAULT_TIMES,
+  cancelAll,
+  getPermission,
+  getTimes,
+  isRemindersEnabled,
+  registerServiceWorker,
+  remindersStatus,
+  requestPermission,
+  scheduleToday,
+  setRemindersEnabled,
+  setTimes,
+  testNotification,
+} from './notifications';
+import {
   MEAL_ICONS,
   MEAL_LABELS,
   type ActivityLevel,
@@ -132,6 +146,7 @@ function renderAll(): void {
   renderWeek();
   renderPlan();
   renderAnalysis();
+  updateBellDot();
 }
 
 function renderHeader(): void {
@@ -380,10 +395,25 @@ function renderChallenges(): void {
 function renderMeals(): void {
   const dateKey = toDateKey(selectedDate);
   const container = $('#meals');
+  const showReminders = isRemindersEnabled() && dateKey === todayKey();
+  const now = new Date();
+  const times = getTimes();
 
   container.innerHTML = MEALS.map((meal) => {
     const entries = getEntriesForMeal(dateKey, meal);
     const total = entries.reduce((s, e) => s + e.calories * e.quantity, 0);
+
+    let pendingBadge = '';
+    if (showReminders) {
+      if (entries.length > 0) {
+        pendingBadge = `<span class="meal-pending done" title="Ya registraste ${MEAL_LABELS[meal].toLowerCase()}">✓</span>`;
+      } else {
+        const [hh, mm] = (times[meal] ?? DEFAULT_TIMES[meal]).split(':').map(Number);
+        const target = new Date();
+        target.setHours(hh, mm, 0, 0);
+        if (now >= target) pendingBadge = `<span class="meal-pending">Pendiente</span>`;
+      }
+    }
 
     const items = entries.length
       ? entries
@@ -403,11 +433,11 @@ function renderMeals(): void {
       : `<li class="entry-empty">Sin registros — añade tu primer alimento</li>`;
 
     return `
-      <section class="card meal-card">
+      <section class="card meal-card" data-meal="${meal}">
         <header class="meal-head">
           <div class="meal-title">
             <span class="meal-icon">${MEAL_ICONS[meal]}</span>
-            <h3>${MEAL_LABELS[meal]}</h3>
+            <h3>${MEAL_LABELS[meal]}${pendingBadge}</h3>
           </div>
           <div class="meal-side">
             <span class="meal-total">${fmt(total)} kcal</span>
@@ -668,8 +698,101 @@ function saveSettings(): void {
 }
 
 /* ==================================================================
-   Modal: perfil
+   Modal: recordatorios
    ================================================================== */
+
+function updateBellDot(): void {
+  const dot = $('#bell-dot');
+  if (!dot) return;
+  const enabled = isRemindersEnabled();
+  const perm = getPermission();
+  dot.classList.toggle('hidden', !(enabled && perm === 'granted'));
+}
+
+function updateReminderStatus(): void {
+  const status = $('#reminder-status');
+  const perm = getPermission();
+  const enabled = isRemindersEnabled();
+  if (perm === 'unsupported') {
+    status.className = 'reminder-status warn';
+    status.textContent = '⚠️ Tu navegador no soporta notificaciones nativas. Usaremos avisos dentro de la app.';
+  } else if (perm === 'denied') {
+    status.className = 'reminder-status denied';
+    status.textContent = '🚫 Bloqueaste las notificaciones del navegador. Habilítalas en Configuración del sitio para que podamos avisarte.';
+  } else if (perm === 'granted' && enabled) {
+    status.className = 'reminder-status ok';
+    status.textContent = '✅ Activo: te avisaremos a las horas elegidas para registrar cada comida.';
+  } else if (perm === 'granted' && !enabled) {
+    status.className = 'reminder-status warn';
+    status.textContent = '🔔 Tienes permiso para recibir notificaciones, pero los recordatorios están desactivados. Actívalos abajo.';
+  } else if (enabled && perm === 'default') {
+    status.className = 'reminder-status warn';
+    status.textContent = '⏳ Activado, pero falta permiso: al pulsar Guardar te lo solicitaremos. En algunos navegadores no se puede pedir permiso por código: actívalo desde el candado 🔒 de la barra de direcciones.';
+  } else {
+    status.className = 'reminder-status warn';
+    status.textContent = '🔕 Activa el switch y te pediremos permiso para enviarte avisos.';
+  }
+}
+
+function openReminders(): void {
+  const times = getTimes();
+  ($('#r-desayuno') as HTMLInputElement).value = times.desayuno;
+  ($('#r-almuerzo') as HTMLInputElement).value = times.almuerzo;
+  ($('#r-snacks') as HTMLInputElement).value = times.snacks;
+  ($('#r-cena') as HTMLInputElement).value = times.cena;
+  ($('#reminders-switch') as HTMLInputElement).checked = isRemindersEnabled();
+  updateReminderStatus();
+  $('#reminders-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeReminders(): void {
+  $('#reminders-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+async function saveReminders(): Promise<void> {
+  const sw = $('#reminders-switch') as HTMLInputElement;
+  const wantsEnabled = sw.checked;
+
+  if (wantsEnabled) {
+    const perm = await requestPermission();
+    if (perm !== 'granted') {
+      updateReminderStatus();
+      updateBellDot();
+      return;
+    }
+  }
+
+  const times = {
+    desayuno: ($('#r-desayuno') as HTMLInputElement).value || DEFAULT_TIMES.desayuno,
+    almuerzo: ($('#r-almuerzo') as HTMLInputElement).value || DEFAULT_TIMES.almuerzo,
+    snacks: ($('#r-snacks') as HTMLInputElement).value || DEFAULT_TIMES.snacks,
+    cena: ($('#r-cena') as HTMLInputElement).value || DEFAULT_TIMES.cena,
+  };
+  setTimes(times);
+  setRemindersEnabled(wantsEnabled);
+
+  updateReminderStatus();
+  updateBellDot();
+  renderMeals();
+  closeReminders();
+}
+
+async function handleTestNotif(): Promise<void> {
+  const state = await testNotification();
+  if (state !== 'granted') {
+    const btn = $('#btn-test-notif');
+    btn.textContent = '🚫 Permiso bloqueado';
+    setTimeout(() => (btn.textContent = '🔔 Probar notificación'), 2500);
+  } else {
+    const btn = $('#btn-test-notif');
+    btn.textContent = '✅ Enviada';
+    setTimeout(() => (btn.textContent = '🔔 Probar notificación'), 2500);
+  }
+  updateReminderStatus();
+  updateBellDot();
+}
 
 function fillProfileSelects(): void {
   ($('#pf-activity') as HTMLSelectElement).innerHTML = Object.entries(ACTIVITY_LABELS)
@@ -922,11 +1045,13 @@ function bindEvents(): void {
   $('#settings-close').addEventListener('click', closeSettings);
   $('#profile-close').addEventListener('click', closeProfile);
   $('#labs-close').addEventListener('click', closeLabsModal);
+  $('#reminders-close').addEventListener('click', closeReminders);
   for (const [id, close] of [
     ['#modal', closeModal],
     ['#settings-modal', closeSettings],
     ['#profile-modal', closeProfile],
     ['#labs-modal', closeLabsModal],
+    ['#reminders-modal', closeReminders],
   ] as const) {
     $(id).addEventListener('click', (ev) => {
       if (ev.target === ev.currentTarget) close();
@@ -938,6 +1063,7 @@ function bindEvents(): void {
       closeSettings();
       closeProfile();
       closeLabsModal();
+      closeReminders();
     }
   });
 
@@ -948,6 +1074,17 @@ function bindEvents(): void {
   // Exámenes de sangre
   $('#btn-edit-labs').addEventListener('click', openLabsModal);
   $('#btn-save-labs').addEventListener('click', saveLabs);
+
+  // Recordatorios
+  $('#btn-reminders').addEventListener('click', openReminders);
+  $('#reminders-close').addEventListener('click', closeReminders);
+  $('#btn-save-reminders').addEventListener('click', saveReminders);
+  $('#btn-test-notif').addEventListener('click', handleTestNotif);
+  $('#reminders-modal').addEventListener('click', (ev) => {
+    if (ev.target === ev.currentTarget) closeReminders();
+  });
+  // Cambio en el switch → actualizar mensaje de estado
+  $('#reminders-switch').addEventListener('change', updateReminderStatus);
 
   // Perfil
   $('#btn-profile').addEventListener('click', openProfile);
@@ -996,5 +1133,30 @@ function bindEvents(): void {
 seedDemoData();
 bindEvents();
 renderAll();
+
+// Service Worker para notificaciones + programar recordatorios del día
+registerServiceWorker().then(async () => {
+  // Escuchar mensajes del SW: click en notificación → abrir comida
+  navigator.serviceWorker?.addEventListener('message', (ev) => {
+    if (ev.data?.type === 'open-meal' && ev.data.meal) {
+      openModal(ev.data.meal as MealType);
+    }
+  });
+  // Re-programar para el día cada vez que la app se carga
+  if (isRemindersEnabled() && getPermission() === 'granted') {
+    await scheduleToday();
+  }
+});
+
 // Si hay base de datos configurada, el estado remoto reemplaza al local.
 initSync(() => renderAll());
+
+// Re-programar al volver a la pestaña (por si la fecha cambió o la app quedó abierta)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    updateBellDot();
+    if (isRemindersEnabled() && getPermission() === 'granted') {
+      void scheduleToday();
+    }
+  }
+});

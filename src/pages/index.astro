@@ -29,6 +29,11 @@ import Layout from '../layouts/Layout.astro';
           </button>
         </nav>
         <button class="btn-ghost" id="btn-today">Hoy</button>
+        <button class="btn-ghost" id="btn-reminders" aria-label="Recordatorios">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="bell-label">Recordar</span>
+          <span class="bell-dot hidden" id="bell-dot"></span>
+        </button>
         <button class="btn-ghost" id="btn-profile">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Mi perfil
@@ -271,6 +276,58 @@ import Layout from '../layouts/Layout.astro';
         </div>
         <p class="field-hint">Tip: en “Mi perfil” puedes calcular objetivos sugeridos según tu cuerpo y actividad.</p>
         <button class="btn-primary" id="btn-save-goals">Guardar objetivos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: recordatorios de comidas ===== -->
+  <div class="modal" id="reminders-modal" role="dialog" aria-modal="true" aria-labelledby="reminders-title">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-head">
+        <h2 id="reminders-title">Recordatorios de comidas</h2>
+        <button class="icon-btn" id="reminders-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="reminder-status" id="reminder-status"></div>
+
+        <label class="switch-row">
+          <span>
+            <b>Activar recordatorios</b>
+            <span class="field-hint">Te avisamos a las horas elegidas para que no se te olvide registrar.</span>
+          </span>
+          <label class="switch">
+            <input type="checkbox" id="reminders-switch" />
+            <span class="slider"></span>
+          </label>
+        </label>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="r-desayuno">🌅 Desayuno</label>
+            <input type="time" id="r-desayuno" />
+          </div>
+          <div class="field">
+            <label for="r-almuerzo">☀️ Almuerzo</label>
+            <input type="time" id="r-almuerzo" />
+          </div>
+          <div class="field">
+            <label for="r-snacks">🍎 Snacks</label>
+            <input type="time" id="r-snacks" />
+          </div>
+          <div class="field">
+            <label for="r-cena">🌙 Cena</label>
+            <input type="time" id="r-cena" />
+          </div>
+        </div>
+
+        <p class="field-hint">💡 Los mensajes se adaptan a tus retos del día y te avisan si ya registraste cada comida.</p>
+
+        <div class="reminder-actions">
+          <button class="btn-ghost" id="btn-test-notif">🔔 Probar notificación</button>
+          <button class="btn-primary" id="btn-save-reminders">Guardar</button>
+        </div>
       </div>
     </div>
   </div>

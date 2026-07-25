@@ -1598,6 +1598,162 @@ body.modal-open {
 }
 
 /* ==================================================================
+   Recordatorios / campana
+   ================================================================== */
+
+.bell-label {
+  display: inline-block;
+}
+
+.bell-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+  margin-left: 4px;
+}
+
+.reminder-status {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.reminder-status.ok {
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  color: var(--accent);
+}
+
+.reminder-status.denied {
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  color: var(--danger);
+}
+
+.reminder-status.warn {
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--carbs);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.switch-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.switch-row b {
+  font-size: 0.88rem;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.switch input:checked + .slider {
+  background: linear-gradient(135deg, #34d399, #a3e635);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.reminder-actions .btn-primary {
+  flex: 1;
+}
+
+/* Dot de comida pendiente */
+
+.meal-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--carbs);
+}
+
+.meal-pending::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--carbs);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.7);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.meal-pending.done {
+  color: var(--accent);
+}
+
+.meal-pending.done::before {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.7);
+  animation: none;
+}
+
+/* ==================================================================
    Exámenes de sangre
    ================================================================== */
 
@@ -1791,5 +1947,13 @@ body.modal-open {
 
   .plan-grid {
     grid-template-columns: 1fr;
+  }
+
+  .bell-label {
+    display: none;
+  }
+
+  .reminder-actions {
+    flex-direction: column;
   }
 }

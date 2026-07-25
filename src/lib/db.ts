@@ -51,6 +51,14 @@ export async function ensureSchema(db: Client): Promise<void> {
       value TEXT NOT NULL,
       PRIMARY KEY (user_code, key)
     )`,
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (
+      user_code TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_code, endpoint)
+    )`,
   ]);
   schemaReady = true;
 }

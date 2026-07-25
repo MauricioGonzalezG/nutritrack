@@ -1,6 +1,7 @@
-import { getEntriesForDate, getGoals, getLabs, getProfile, todayKey } from './store';
-import { buildCtx, dailyChallenges, isChallengeDone } from './challenges';
+import { getEntriesForDate, getLabs, getProfile, todayKey } from './store';
+import { buildCtx, dailyChallenges } from './challenges';
 import { effectiveFocus } from './labs';
+import { getSyncCode } from './sync';
 import { MEAL_LABELS, type MealType } from './types';
 
 const TIMES_KEY = 'nutritrack:reminder-times';
@@ -31,6 +32,12 @@ export function isRemindersEnabled(): boolean {
   return localStorage.getItem(ENABLED_KEY) === '1';
 }
 
+export function setRemindersEnabled(enabled: boolean): void {
+  localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
+  if (enabled) void scheduleToday();
+  else void cancelAll();
+}
+
 export function getTimes(): Record<MealType, string> {
   try {
     const raw = localStorage.getItem(TIMES_KEY);
@@ -44,24 +51,16 @@ export function setTimes(times: Record<MealType, string>): void {
   localStorage.setItem(TIMES_KEY, JSON.stringify(times));
 }
 
-export function setRemindersEnabled(enabled: boolean): void {
-  localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
-  if (enabled) scheduleToday();
-  else cancelAll();
-}
-
 interface ReminderContext {
-  profile: ReturnType<typeof getProfile>;
   hasEntries: Record<MealType, boolean>;
-  focus: ReturnType<typeof effectiveFocus>;
   challenge: { title: string; desc: string } | null;
 }
 
-function buildContext(meal: MealType): ReminderContext {
+function buildContext(): ReminderContext {
   const profile = getProfile();
   const focus = effectiveFocus(profile, getLabs());
   const dateKey = todayKey();
-  const ctx = buildCtx(dateKey, profile);
+  buildCtx(dateKey, profile); // mantiene coherencia si se invoca desde otros lugares
   const todays = dailyChallenges(dateKey, focus);
   const entries = getEntriesForDate(dateKey);
   const hasEntries: Record<MealType, boolean> = {
@@ -70,39 +69,123 @@ function buildContext(meal: MealType): ReminderContext {
     cena: entries.some((e) => e.meal === 'cena'),
     snacks: entries.some((e) => e.meal === 'snacks'),
   };
-  return { profile, hasEntries, focus, challenge: todays[0] ?? null };
+  return { hasEntries, challenge: todays[0] ?? null };
 }
 
 function messageFor(meal: MealType, ctx: ReminderContext): string {
-  const already = ctx.hasEntries[meal];
-  if (already) return `✅ Ya registraste ${MEAL_LABELS[meal].toLowerCase()}. ¡Buen trabajo!`;
-  if (meal === 'desayuno') {
-    return '🥣 ¿Qué desayunaste? La avena o un batido con frutas son grandes aliados para tu LDL.';
-  }
+  if (ctx.hasEntries[meal]) return `✅ Ya registraste ${MEAL_LABELS[meal].toLowerCase()}. ¡Buen trabajo!`;
+  if (meal === 'desayuno') return '🥣 ¿Qué desayunaste? La avena o un batido con frutas son grandes aliados para tu LDL.';
   if (meal === 'almuerzo') {
     const reto = ctx.challenge ? ` Hoy toca: ${ctx.challenge.title.toLowerCase()}.` : '';
     return `🍛 No olvides registrar tu almuerzo.${reto}`;
   }
-  if (meal === 'snacks') {
-    return '🍎 ¿Tuviste algún snack? Una fruta o puñado de frutos secos siempre suma.';
-  }
+  if (meal === 'snacks') return '🍎 ¿Tuviste algún snack? Una fruta o puñado de frutos secos siempre suma.';
   return '🌙 Última comida del día. Cena ligera, sin alcohol ni fritos, para bajar triglicéridos.';
 }
 
-function titleFor(meal: MealType): string {
-  return `NutriTrack · ${MEAL_LABELS[meal]}`;
+/* ==================================================================
+   Web Push (VAPID): suscripción persistente enviada por el servidor
+   ================================================================== */
+
+async function fetchVapidKey(): Promise<string | null> {
+  try {
+    const r = await fetch('/api/push/vapid-key');
+    if (!r.ok) return null;
+    const data = (await r.json()) as { key: string | null };
+    return data.key;
+  } catch {
+    return null;
+  }
 }
 
-/** Programa los recordatorios del día (saltando los del pasado). */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
+  return output;
+}
+
+export async function isPushSubscribed(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return false;
+  const sub = await reg.pushManager.getSubscription();
+  return !!sub;
+}
+
+export async function subscribeToPush(times: Record<MealType, string>): Promise<{ ok: boolean; reason?: string }> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, reason: 'unsupported' };
+  }
+  const reg = await navigator.serviceWorker.ready.catch(() => null);
+  if (!reg) return { ok: false, reason: 'no-service-worker' };
+
+  const vapidKey = await fetchVapidKey();
+  if (!vapidKey) return { ok: false, reason: 'no-vapid-key' };
+
+  let subscription = await reg.pushManager.getSubscription();
+  if (!subscription) {
+    try {
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+    } catch (err) {
+      return { ok: false, reason: `subscribe-failed:${(err as Error).message}` };
+    }
+  }
+
+  const json = subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+  try {
+    const r = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        u: getSyncCode(),
+        subscription: { endpoint: json.endpoint, keys: json.keys },
+        times,
+        timezone,
+      }),
+    });
+    if (!r.ok) return { ok: false, reason: `server-${r.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: `network:${(err as Error).message}` };
+  }
+}
+
+export async function unsubscribeFromPush(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return;
+  try {
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ u: getSyncCode(), endpoint: sub.endpoint }),
+    });
+  } catch { /* ignorar errores de red al desuscribir */ }
+  await sub.unsubscribe();
+}
+
+/* ==================================================================
+   Programación local (fallback cuando no hay servidor / push)
+   ================================================================== */
+
 export async function scheduleToday(): Promise<void> {
   if (getPermission() !== 'granted') return;
   if (!('serviceWorker' in navigator)) return;
-
   await cancelAll();
   const reg = await navigator.serviceWorker.ready.catch(() => null);
   if (!reg?.active) return;
-
   const times = getTimes();
+  const ctx = buildContext();
   const now = Date.now();
   const meals: MealType[] = ['desayuno', 'almuerzo', 'snacks', 'cena'];
   for (const meal of meals) {
@@ -111,13 +194,12 @@ export async function scheduleToday(): Promise<void> {
     const target = new Date();
     target.setHours(hh, mm, 0, 0);
     const delay = target.getTime() - now;
-    if (delay <= 0) continue; // ya pasó hoy
-    const ctx = buildContext(meal);
+    if (delay <= 0) continue;
     reg.active.postMessage({
       type: 'schedule',
       id: meal,
       delay,
-      title: titleFor(meal),
+      title: `NutriTrack · ${MEAL_LABELS[meal]}`,
       body: messageFor(meal, ctx),
       meal,
       tag: meal,
@@ -131,7 +213,6 @@ export async function cancelAll(): Promise<void> {
   reg?.active?.postMessage({ type: 'cancel-all' });
 }
 
-/** Muestra una notificación de prueba inmediata. */
 export async function testNotification(): Promise<PermissionState> {
   const state = await requestPermission();
   if (state !== 'granted' || getPermission() !== 'granted') return state;
@@ -142,7 +223,6 @@ export async function testNotification(): Promise<PermissionState> {
   return 'granted';
 }
 
-/** Registra el service worker (idempotente). */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;
   try {
@@ -155,7 +235,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
-/** Resumen del estado para la UI. */
 export function remindersStatus(): { enabled: boolean; times: Record<MealType, string>; permission: PermissionState } {
   return { enabled: isRemindersEnabled(), times: getTimes(), permission: getPermission() };
 }

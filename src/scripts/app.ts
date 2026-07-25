@@ -46,14 +46,16 @@ import {
   cancelAll,
   getPermission,
   getTimes,
+  isPushSubscribed,
   isRemindersEnabled,
   registerServiceWorker,
-  remindersStatus,
   requestPermission,
   scheduleToday,
   setRemindersEnabled,
   setTimes,
+  subscribeToPush,
   testNotification,
+  unsubscribeFromPush,
 } from './notifications';
 import {
   MEAL_ICONS,
@@ -709,25 +711,29 @@ function updateBellDot(): void {
   dot.classList.toggle('hidden', !(enabled && perm === 'granted'));
 }
 
-function updateReminderStatus(): void {
+async function updateReminderStatus(): Promise<void> {
   const status = $('#reminder-status');
   const perm = getPermission();
   const enabled = isRemindersEnabled();
+  const pushOk = enabled ? await isPushSubscribed().catch(() => false) : false;
   if (perm === 'unsupported') {
     status.className = 'reminder-status warn';
     status.textContent = '⚠️ Tu navegador no soporta notificaciones nativas. Usaremos avisos dentro de la app.';
   } else if (perm === 'denied') {
     status.className = 'reminder-status denied';
-    status.textContent = '🚫 Bloqueaste las notificaciones del navegador. Habilítalas en Configuración del sitio para que podamos avisarte.';
-  } else if (perm === 'granted' && enabled) {
+    status.textContent = '🚫 Bloqueaste las notificaciones del navegador. Habilítalas en Configuración del sitio (candado 🔒) para que podamos avisarte.';
+  } else if (perm === 'granted' && enabled && pushOk) {
     status.className = 'reminder-status ok';
-    status.textContent = '✅ Activo: te avisaremos a las horas elegidas para registrar cada comida.';
+    status.textContent = '✅ Activo con push: te avisaremos a las horas elegidas, aunque la app esté cerrada.';
+  } else if (perm === 'granted' && enabled && !pushOk) {
+    status.className = 'reminder-status warn';
+    status.textContent = '⚠️ Activado, pero la suscripción push falló (¿base de datos no configurada?). Mientras la app esté abierta funcionarán los avisos.';
   } else if (perm === 'granted' && !enabled) {
     status.className = 'reminder-status warn';
     status.textContent = '🔔 Tienes permiso para recibir notificaciones, pero los recordatorios están desactivados. Actívalos abajo.';
   } else if (enabled && perm === 'default') {
     status.className = 'reminder-status warn';
-    status.textContent = '⏳ Activado, pero falta permiso: al pulsar Guardar te lo solicitaremos. En algunos navegadores no se puede pedir permiso por código: actívalo desde el candado 🔒 de la barra de direcciones.';
+    status.textContent = '⏳ Activado, pero falta permiso: al pulsar Guardar te lo solicitaremos.';
   } else {
     status.className = 'reminder-status warn';
     status.textContent = '🔕 Activa el switch y te pediremos permiso para enviarte avisos.';
@@ -755,15 +761,6 @@ async function saveReminders(): Promise<void> {
   const sw = $('#reminders-switch') as HTMLInputElement;
   const wantsEnabled = sw.checked;
 
-  if (wantsEnabled) {
-    const perm = await requestPermission();
-    if (perm !== 'granted') {
-      updateReminderStatus();
-      updateBellDot();
-      return;
-    }
-  }
-
   const times = {
     desayuno: ($('#r-desayuno') as HTMLInputElement).value || DEFAULT_TIMES.desayuno,
     almuerzo: ($('#r-almuerzo') as HTMLInputElement).value || DEFAULT_TIMES.almuerzo,
@@ -771,7 +768,28 @@ async function saveReminders(): Promise<void> {
     cena: ($('#r-cena') as HTMLInputElement).value || DEFAULT_TIMES.cena,
   };
   setTimes(times);
-  setRemindersEnabled(wantsEnabled);
+
+  if (wantsEnabled) {
+    const perm = await requestPermission();
+    if (perm !== 'granted') {
+      // No se pudo obtener permiso: apagar el switch y no guardar enabled
+      sw.checked = false;
+      setRemindersEnabled(false);
+      updateReminderStatus();
+      updateBellDot();
+      return;
+    }
+    // Suscribirse al push (envía al servidor si hay DB)
+    const result = await subscribeToPush(times);
+    if (!result.ok) {
+      console.warn('No se pudo suscribir a push:', result.reason);
+    }
+    setRemindersEnabled(true);
+  } else {
+    // Desactivar: desuscribir y limpiar
+    await unsubscribeFromPush();
+    setRemindersEnabled(false);
+  }
 
   updateReminderStatus();
   updateBellDot();

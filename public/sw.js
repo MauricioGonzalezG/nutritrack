@@ -1,5 +1,6 @@
 // NutriTrack — Service Worker
-// Maneja notificaciones de recordatorio (desayuno / almuerzo / cena).
+// Maneja notificaciones de recordatorio (desayuno / almuerzo / cena) enviadas
+// vía Web Push desde el backend. Al hacer click, enfoca la app y abre la comida.
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -7,6 +8,31 @@ self.addEventListener('install', () => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+/** Push desde el servidor: muestra la notificación con los datos del payload. */
+self.addEventListener('push', (event) => {
+  let payload = { title: 'NutriTrack', body: 'Tienes un recordatorio', meal: '' };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+    }
+  } catch {
+    if (event.data) payload.body = event.data.text();
+  }
+
+  const options = {
+    body: payload.body,
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    tag: `nutritrack-${payload.meal || 'r'}-${Math.floor(Date.now() / 60000)}`,
+    data: { meal: payload.meal, ts: Date.now() },
+    requireInteraction: false,
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(payload.title, options));
 });
 
 /** Al hacer click en una notificación: enfocar la app y abrir la comida correspondiente. */
@@ -29,7 +55,7 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-/** Mensajes desde la app: programar (o cancelar) recordatorios. */
+/** Compatibilidad: mensajes directos desde la app (programación local por setTimeout). */
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || typeof data !== 'object') return;
@@ -48,7 +74,7 @@ self.addEventListener('message', (event) => {
           requireInteraction: false,
         })
         .catch(() => {
-          /* permiso revocado o SW detenido: ignorar silenciosamente */
+          /* permiso revocado o SW detenido */
         });
     }, delay);
   }

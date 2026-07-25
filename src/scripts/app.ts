@@ -310,11 +310,13 @@ function openLabsModal(): void {
   ($('#lab-index') as HTMLInputElement).value = labs?.atherogenicIndex !== undefined ? String(labs.atherogenicIndex) : '';
   $('#labs-modal').classList.add('open');
   document.body.classList.add('modal-open');
+  setupModalViewport($('#labs-modal'));
 }
 
 function closeLabsModal(): void {
   $('#labs-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+  teardownModalViewport();
 }
 
 function saveLabs(): void {
@@ -535,6 +537,58 @@ function renderAnalysis(): void {
    Modal: añadir alimento
    ================================================================== */
 
+/** Ajusta el modal al área visible (sin el teclado) en tiempo real.
+ *  En móvil, alinea arriba para que el input no quede tapado. */
+let modalViewportTeardown: (() => void) | null = null;
+
+function setupModalViewport(modal: HTMLElement): void {
+  teardownModalViewport();
+
+  const card = modal.querySelector('.modal-card') as HTMLElement | null;
+  if (!card) return;
+
+  const isNarrow =
+    window.innerWidth < 600 ||
+    (window.visualViewport ? window.visualViewport.width < 600 : false);
+  if (isNarrow) modal.classList.add('modal--top');
+
+  const update = () => {
+    const vv = window.visualViewport;
+    const visibleHeight = vv ? vv.height : window.innerHeight;
+    const margin = isNarrow ? 16 : 40;
+    const maxH = Math.max(320, Math.floor(visibleHeight - margin));
+    card.style.maxHeight = `${maxH}px`;
+  };
+
+  update();
+
+  const onResize = () => update();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', onResize);
+    window.visualViewport.addEventListener('scroll', onResize);
+  }
+  window.addEventListener('resize', onResize);
+
+  modalViewportTeardown = () => {
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', onResize);
+      window.visualViewport.removeEventListener('scroll', onResize);
+    }
+    window.removeEventListener('resize', onResize);
+  };
+}
+
+function teardownModalViewport(): void {
+  if (modalViewportTeardown) {
+    modalViewportTeardown();
+    modalViewportTeardown = null;
+  }
+  document.querySelectorAll('.modal--top').forEach((m) => m.classList.remove('modal--top'));
+  document.querySelectorAll('.modal-card').forEach((c) => {
+    (c as HTMLElement).style.maxHeight = '';
+  });
+}
+
 function openModal(meal: MealType): void {
   modalMeal = meal;
   selectedFood = null;
@@ -544,12 +598,19 @@ function openModal(meal: MealType): void {
   $('#modal').classList.add('open');
   document.body.classList.add('modal-open');
   renderModal();
-  setTimeout(() => ($('#food-search') as HTMLInputElement).focus(), 50);
+  setupModalViewport($('#modal'));
+  setTimeout(() => {
+    const input = $('#food-search') as HTMLInputElement;
+    input.focus();
+    // Cuando el teclado aparece, asegurar que el input siga visible
+    setTimeout(() => input.scrollIntoView({ block: 'nearest' }), 350);
+  }, 50);
 }
 
 function closeModal(): void {
   $('#modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+  teardownModalViewport();
 }
 
 function renderModal(): void {
@@ -674,11 +735,13 @@ function openSettings(): void {
   ($('#goal-fat') as HTMLInputElement).value = String(g.fat);
   $('#settings-modal').classList.add('open');
   document.body.classList.add('modal-open');
+  setupModalViewport($('#settings-modal'));
 }
 
 function closeSettings(): void {
   $('#settings-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+  teardownModalViewport();
 }
 
 function saveSettings(): void {
@@ -750,11 +813,13 @@ function openReminders(): void {
   updateReminderStatus();
   $('#reminders-modal').classList.add('open');
   document.body.classList.add('modal-open');
+  setupModalViewport($('#reminders-modal'));
 }
 
 function closeReminders(): void {
   $('#reminders-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+  teardownModalViewport();
 }
 
 async function saveReminders(): Promise<void> {
@@ -887,11 +952,13 @@ function openProfile(): void {
   $('#link-error').textContent = '';
   $('#profile-modal').classList.add('open');
   document.body.classList.add('modal-open');
+  setupModalViewport($('#profile-modal'));
 }
 
 function closeProfile(): void {
   $('#profile-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+  teardownModalViewport();
 }
 
 function saveProfile(): void {

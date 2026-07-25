@@ -738,6 +738,15 @@ body.modal-open {
   pointer-events: auto;
 }
 
+/* En móvil: alinear arriba para que el input no quede tapado por el teclado */
+.modal--top {
+  align-items: flex-start;
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .modal-card {
   width: 100%;
   max-width: 520px;
@@ -1955,5 +1964,17 @@ body.modal-open {
 
   .reminder-actions {
     flex-direction: column;
+  }
+
+  .modal {
+    padding: 12px;
+  }
+
+  .modal--top {
+    padding: 8px;
+  }
+
+  .modal-card {
+    max-width: 100%;
   }
 }

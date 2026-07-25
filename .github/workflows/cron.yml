@@ -7,7 +7,7 @@ name: NutriTrack reminders
 on:
   schedule:
     - cron: '*/5 * * * *'
-  workflow_dispatch: # permite lanzarlo manualmente desde la pestaña Actions
+  workflow_dispatch:
 
 jobs:
   send-reminders:

@@ -23,7 +23,7 @@ import Layout from '../layouts/Layout.astro';
           <button class="icon-btn" id="btn-prev-day" aria-label="Día anterior">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
-          <span class="date-nav-label" id="date-label">Hoy</span>
+          <span class="date-nav-label" id="date-label">Hoy</span><span class="plan-badge hidden" id="plan-badge">📌 Plan</span>
           <button class="icon-btn" id="btn-next-day" aria-label="Día siguiente">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
@@ -177,30 +177,56 @@ import Layout from '../layouts/Layout.astro';
         <div class="meal-pills" id="meal-pills"></div>
 
         <div class="tabs">
-          <button class="tab active" id="tab-buscar">🔍 Buscar alimento</button>
+          <button class="tab active" id="tab-buscar">🔍 Buscar</button>
+          <button class="tab" id="tab-foto">📸 Foto</button>
           <button class="tab" id="tab-custom">✏️ Personalizado</button>
         </div>
 
-        <!-- Panel búsqueda -->
+        <!-- Panel búsqueda: contiene buscador + panel foto (ambos dentro de "panel-buscar") -->
         <div id="panel-buscar" style="display: contents;">
-          <div class="search-box">
-            <input type="text" id="food-search" placeholder="Buscar: pollo, arroz, manzana…" autocomplete="off" />
-          </div>
-          <div class="food-list" id="food-list"></div>
-          <div class="selection-panel hidden" id="selection-panel">
-            <span class="sel-emoji" id="sel-emoji">🍗</span>
-            <div class="sel-info">
-              <span class="sel-name" id="sel-name">Alimento</span>
-              <span class="sel-serving" id="sel-serving">100 g</span>
+          <!-- Panel foto (Gemini IA) -->
+          <div id="panel-foto" class="hidden photo-panel">
+            <div class="photo-dropzone" id="photo-dropzone">
+              <span class="photo-icon">📸</span>
+              <span class="photo-hint">Toma una foto del plato o sube una imagen</span>
+              <input type="file" accept="image/*" capture="environment" id="photo-input" hidden />
+              <button class="btn-primary" id="btn-pick-photo">Abrir cámara / Galería</button>
             </div>
-            <div class="qty-stepper">
-              <button id="qty-minus" aria-label="Menos">−</button>
-              <span class="qty-value" id="qty-value">1</span>
-              <button id="qty-plus" aria-label="Más">+</button>
+            <div class="photo-preview hidden" id="photo-preview-wrap">
+              <img id="photo-preview" alt="Vista previa" />
+              <div class="photo-actions">
+                <button class="btn-ghost" id="btn-change-photo">Cambiar</button>
+                <button class="btn-primary" id="btn-analyze-photo" disabled>Analizar con IA ⚡</button>
+              </div>
             </div>
-            <span class="sel-kcal" id="sel-kcal">0 kcal</span>
+            <div class="photo-loading hidden" id="photo-loading">
+              <span class="spinner"></span>
+              <span>Analizando con Gemini…</span>
+            </div>
+            <p class="form-error" id="photo-error"></p>
           </div>
-          <button class="btn-primary" id="btn-confirm-add">Añadir al registro</button>
+
+          <!-- Buscador -->
+          <div id="panel-buscar-content">
+            <div class="search-box">
+              <input type="text" id="food-search" placeholder="Buscar: pollo, arroz, manzana…" autocomplete="off" />
+            </div>
+            <div class="food-list" id="food-list"></div>
+            <div class="selection-panel hidden" id="selection-panel">
+              <span class="sel-emoji" id="sel-emoji">🍗</span>
+              <div class="sel-info">
+                <span class="sel-name" id="sel-name">Alimento</span>
+                <span class="sel-serving" id="sel-serving">100 g</span>
+              </div>
+              <div class="qty-stepper">
+                <button id="qty-minus" aria-label="Menos">−</button>
+                <span class="qty-value" id="qty-value">1</span>
+                <button id="qty-plus" aria-label="Más">+</button>
+              </div>
+              <span class="sel-kcal" id="sel-kcal">0 kcal</span>
+            </div>
+            <button class="btn-primary" id="btn-confirm-add">Añadir al registro</button>
+          </div>
         </div>
 
         <!-- Panel personalizado -->

@@ -152,3 +152,61 @@ export function foodHeartRating(f: Food): FoodRating {
   if (f.fiber >= 3.5) return 'good';
   return 'neutral';
 }
+
+/* ---------- Perfil de riesgo/amigos por alimento (selector) ----------
+   Devuelve un nivel (good/warn/bad/neutral) + razones en texto plano,
+   para mostrar avisos intuitivos directamente en la lista de alimentos. */
+
+export type RiskLevel = 'good' | 'warn' | 'bad' | 'neutral';
+
+export interface FoodRisk {
+  level: RiskLevel;
+  reasons: string[]; //Etiquetas cortas (≤4 palabras)
+  primary: string; // razón principal (1)
+}
+
+const OMEGA3_IDS = new Set(['salmon', 'atun', 'sardina', 'trucha', 'mojarra', 'tilapia', 'camaron']);
+const UNSAT_IDS = new Set(['aguacate', 'aceite-oliva', 'almendras', 'nueces', 'pistachos', 'castanas-brasil', 'avellana', 'mani', 'chia', 'linaza', 'semillas-girasol']);
+const FRY_IDS = new Set(['papas-fritas', 'patacon', 'platano-maduro', 'yuca-frita', 'platanitos', 'empanada-antioquena', 'empanada-valluna', 'arepa-huevo', 'nuggets', 'chicharron', 'empanada-valluna']);
+const ALCOHOL_IDS = new Set(['cerveza', 'vino', 'canelazo', 'carajillo', 'chicha', 'guarapo']);
+
+export function foodRisk(f: Food): FoodRisk {
+  const good: string[] = [];
+  const warn: string[] = [];
+  const bad: string[] = [];
+  const wholeFruit = WHOLE_FRUITS.has(f.id);
+
+  // --- Colesterol (LDL) ---
+  if (f.satFat >= 6) bad.push('Sube colesterol 🧈');
+  else if (f.satFat >= 3) warn.push('Sat. considerable');
+
+  // --- Triglicéridos (azúcar/alcohol) ---
+  if (f.sugar >= 20 && !wholeFruit) bad.push('Sube triglicéridos 🍬');
+  else if (f.sugar >= 12 && !wholeFruit) warn.push('Azúcar presente');
+
+  if (ALCOHOL_IDS.has(f.id)) bad.push('Alcohol 💣');
+
+  // --- Calorías y frituras ---
+  if (FRY_IDS.has(f.id)) bad.push('Fritura 🍟');
+  if (f.calories >= 600) warn.push('Calorías altas');
+  else if (f.calories >= 400 && !LIMIT_IDS.has(f.id)) warn.push('Calórico');
+
+  if (LIMIT_IDS.has(f.id) && bad.length === 0) warn.push('Limitar');
+
+  // --- Aliados (HDL↑ / LDL↓ / TG↓) ---
+  if (OMEGA3_IDS.has(f.id)) good.push('Omega-3 ↓TG 🐟');
+  if (UNSAT_IDS.has(f.id)) good.push('Grasas buenas 🫒');
+  if (f.fiber >= 5) good.push('Fibra ↓LDL 🌾');
+  else if (f.fiber >= 3 && good.length === 0) good.push('Buena fibra');
+  else if (f.fiber >= 3) good.push('+Fibra');
+
+  let level: RiskLevel;
+  if (bad.length > 0) level = 'bad';
+  else if (warn.length > 0) level = 'warn';
+  else if (good.length > 0) level = 'good';
+  else level = 'neutral';
+
+  const reasons = [...bad, ...warn, ...good].slice(0, 3);
+  const primary = reasons[0] ?? '';
+  return { level, reasons, primary };
+}

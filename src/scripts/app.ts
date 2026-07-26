@@ -25,6 +25,7 @@ import {
   bmiCategory,
   bmr,
   foodHeartRating,
+  foodRisk,
   healthLimits,
   suggestedCalories,
   suggestedMacros,
@@ -81,7 +82,8 @@ let modalMeal: MealType = 'desayuno';
 let selectedFood: Food | null = null;
 let quantity = 1;
 let searchQuery = '';
-let modalTab: 'buscar' | 'personalizado' = 'buscar';
+let modalTab: 'buscar' | 'foto' | 'personalizado' = 'buscar';
+let photoSelected: File | null = null;
 let bannerDismissed = localStorage.getItem('nutritrack:banner-dismissed') === '1';
 
 /* ==================================================================
@@ -152,9 +154,15 @@ function renderAll(): void {
 }
 
 function renderHeader(): void {
+  const isPlan = toDateKey(selectedDate) > todayKey();
   $('#date-label').textContent = dateLabel(selectedDate);
   $('#date-full').textContent = fullDateLabel(selectedDate);
-  ($('#btn-next-day') as HTMLButtonElement).disabled = toDateKey(selectedDate) === todayKey();
+  $('#plan-badge').classList.toggle('hidden', !isPlan);
+  // Permitir avanzar hasta 7 días hacia el futuro para planificar.
+  const max = new Date();
+  max.setHours(0, 0, 0, 0);
+  max.setDate(max.getDate() + 7);
+  ($('#btn-next-day') as HTMLButtonElement).disabled = toDateKey(selectedDate) >= toDateKey(max);
 }
 
 function renderBanner(): void {
@@ -510,6 +518,7 @@ function renderPlan(): void {
 
 function renderAnalysis(): void {
   const dateKey = toDateKey(selectedDate);
+  const isPlan = dateKey > todayKey();
   const insights = generateInsights({
     profile: getProfile(),
     labs: getLabs(),
@@ -518,6 +527,28 @@ function renderAnalysis(): void {
     goals: getGoals(),
     week: getDailySummaries(7),
   });
+
+  // Si es un día futuro (plan), antepón un insight predictivo.
+  if (isPlan) {
+    const totals = getDayTotals(dateKey);
+    const goals = getGoals();
+    const label = selectedDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    const atGoal = totals.calories > 0 && Math.abs(totals.calories - goals.calories) <= 150;
+    const cardText =
+      totals.calories === 0
+        ? 'Vacio por ahora: ve sumando alimentos planificados y volverá a calcularse el beneficio.'
+        : atGoal
+          ? `Si sigues este plan (${totals.calories} kcal ≈ objetivo), mantienes el déficit que baja LDL y triglicéridos.`
+          : totals.calories > goals.calories
+            ? `Plasamas ${Math.round(totals.calories - goals.calories)} kcal de más: revisa snacks y bebidas antes de comerlas.`
+            : `Plan por debajo del objetivo (${Math.round(goals.calories - totals.calories)} kcal): bien si buscas bajar peso, sin descuidar macros.`;
+    insights.unshift({
+      icon: '📌',
+      title: `Plan para ${label}`,
+      text: cardText,
+      tone: totals.calories === 0 ? 'info' : atGoal ? 'good' : 'warn',
+    });
+  }
 
   $('#insights').innerHTML = insights
     .map(
@@ -595,6 +626,13 @@ function openModal(meal: MealType): void {
   quantity = 1;
   searchQuery = '';
   modalTab = 'buscar';
+  photoSelected = null;
+  $('#photo-dropzone').classList.remove('hidden');
+  $('#photo-preview-wrap').classList.add('hidden');
+  $('#photo-loading').classList.add('hidden');
+  ($('#photo-input') as HTMLInputElement).value = '';
+  ($('#btn-analyze-photo') as HTMLButtonElement).disabled = true;
+  $('#photo-error').textContent = '';
   $('#modal').classList.add('open');
   document.body.classList.add('modal-open');
   renderModal();
@@ -602,7 +640,6 @@ function openModal(meal: MealType): void {
   setTimeout(() => {
     const input = $('#food-search') as HTMLInputElement;
     input.focus();
-    // Cuando el teclado aparece, asegurar que el input siga visible
     setTimeout(() => input.scrollIntoView({ block: 'nearest' }), 350);
   }, 50);
 }
@@ -617,8 +654,13 @@ function renderModal(): void {
   $('#modal-title').textContent = `Añadir a ${MEAL_LABELS[modalMeal]}`;
 
   $('#tab-buscar').classList.toggle('active', modalTab === 'buscar');
+  $('#tab-foto').classList.toggle('active', modalTab === 'foto');
   $('#tab-custom').classList.toggle('active', modalTab === 'personalizado');
-  $('#panel-buscar').classList.toggle('hidden', modalTab !== 'buscar');
+  // Ambos tabs (buscar + foto) comparten panel-buscar; mostramos/ocultamos internos.
+  const showBuscarPane = modalTab === 'buscar' || modalTab === 'foto';
+  $('#panel-buscar').classList.toggle('hidden', !showBuscarPane);
+  $('#panel-buscar-content').classList.toggle('hidden', modalTab !== 'buscar');
+  $('#panel-foto').classList.toggle('hidden', modalTab !== 'foto');
   $('#panel-custom').classList.toggle('hidden', modalTab !== 'personalizado');
 
   $('#meal-pills').innerHTML = MEALS.map(
@@ -634,16 +676,21 @@ function renderModal(): void {
     $('#food-list').innerHTML = results.length
       ? results
           .map((f) => {
-            const rating = foodHeartRating(f);
-            const dot = rating !== 'neutral' ? `<span class="food-dot ${rating}" title="${rating === 'good' ? 'Aliado de tu corazón' : 'Conviene limitar'}"></span>` : '';
+            const risk = foodRisk(f);
+            const badges = risk.reasons.length
+              ? `<div class="risk-badges">${risk.reasons
+                  .slice(0, 2)
+                  .map((r) => `<span class="risk-badge ${risk.level}">${esc(r)}</span>`)
+                  .join('')}</div>`
+              : '';
             return `
-        <button class="food-item ${selectedFood?.id === f.id ? 'selected' : ''}" data-food="${f.id}">
+        <button class="food-item risk-${risk.level} ${selectedFood?.id === f.id ? 'selected' : ''}" data-food="${f.id}">
           <span class="food-emoji">${f.emoji}</span>
           <div class="food-info">
             <span class="food-name">${esc(f.name)}</span>
-            <span class="food-serving">${esc(f.serving)} · Fibra ${fmtMacro(f.fiber)}g · Sat ${fmtMacro(f.satFat)}g</span>
+            <span class="food-serving">${esc(f.serving)}</span>
+            ${badges}
           </div>
-          ${dot}
           <span class="food-kcal">${fmt(f.calories)} kcal</span>
         </button>`;
           })
@@ -688,6 +735,49 @@ function confirmAdd(): void {
   pushEntry(entry);
   closeModal();
   renderAll();
+}
+
+async function analyzePhoto(): Promise<void> {
+  if (!photoSelected) return;
+  const btn = $('#btn-analyze-photo') as HTMLButtonElement;
+  btn.disabled = true;
+  $('#photo-loading').classList.remove('hidden');
+  $('#photo-error').textContent = '';
+  try {
+    const form = new FormData();
+    form.append('image', photoSelected);
+    const res = await fetch('/api/analyze-photo', { method: 'POST', body: form });
+    const data = (await res.json()) as { ok?: true; result?: any; error?: string; message?: string };
+    if (!res.ok || !data.ok || !data.result) {
+      throw new Error(data.message || data.error || 'No se pudo analizar (HTTP ' + res.status + ')');
+    }
+    const r = data.result;
+    // Pre-llenar la pestaña "Personalizado" con los valores de Gemini
+    ($('#custom-name') as HTMLInputElement).value = r.name || 'Alimento de la foto';
+    ($('#custom-kcal') as HTMLInputElement).value = String(r.calories || '');
+    ($('#custom-protein') as HTMLInputElement).value = String(r.protein || '');
+    ($('#custom-carbs') as HTMLInputElement).value = String(r.carbs || '');
+    ($('#custom-fat') as HTMLInputElement).value = String(r.fat || '');
+    ($('#custom-satfat') as HTMLInputElement).value = String(r.satFat || '');
+    ($('#custom-fiber') as HTMLInputElement).value = String(r.fiber || '');
+    ($('#custom-sugar') as HTMLInputElement).value = String(r.sugar || '');
+    // Cambiar a la pestaña personalizado para revisar y añadir
+    modalTab = 'personalizado';
+    renderModal();
+    // Bandeja confirmación visible encima del form
+    $('#custom-error').textContent =
+      `✅ IA detectó: ${r.emoji || '🍽️'} ${r.name} (${r.calories} kcal, conf. ${r.confidence || 'media'}). Revisa y pulsa “Añadir”.`;
+    // Limpieza de UI de foto
+    $('#photo-loading').classList.add('hidden');
+    $('#photo-preview-wrap').classList.add('hidden');
+    $('#photo-dropzone').classList.remove('hidden');
+    btn.disabled = false;
+    photoSelected = null;
+  } catch (err) {
+    $('#photo-loading').classList.add('hidden');
+    btn.disabled = false;
+    $('#photo-error').textContent = '⚠️ ' + (err as Error).message;
+  }
 }
 
 function confirmCustom(): void {
@@ -1043,7 +1133,10 @@ function bindEvents(): void {
     renderAll();
   });
   $('#btn-next-day').addEventListener('click', () => {
-    if (toDateKey(selectedDate) === todayKey()) return;
+    // Permitir avanzar hasta 7 días hacia el futuro para planificar.
+    const max = new Date();
+    max.setDate(max.getDate() + 7);
+    if (toDateKey(selectedDate) >= toDateKey(max)) return;
     selectedDate.setDate(selectedDate.getDate() + 1);
     renderAll();
   });
@@ -1119,9 +1212,36 @@ function bindEvents(): void {
   $('#tab-buscar').addEventListener('click', () => {
     modalTab = 'buscar';
     renderModal();
+    setTimeout(() => ($('#food-search') as HTMLInputElement).focus(), 50);
+  });
+  $('#tab-foto').addEventListener('click', () => {
+    modalTab = 'foto';
+    renderModal();
   });
   $('#tab-custom').addEventListener('click', () => {
     modalTab = 'personalizado';
+    renderModal();
+  });
+
+  // Foto: elegir, previsualizar y analizar con Gemini
+  $('#btn-pick-photo').addEventListener('click', () => ($('#photo-input') as HTMLInputElement).click());
+  $('#btn-change-photo').addEventListener('click', () => ($('#photo-input') as HTMLInputElement).click());
+  $('#photo-input').addEventListener('change', (ev) => {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    photoSelected = file;
+    const url = URL.createObjectURL(file);
+    ($('#photo-preview') as HTMLImageElement).src = url;
+    $('#photo-preview-wrap').classList.remove('hidden');
+    $('#photo-dropzone').classList.add('hidden');
+    ($('#btn-analyze-photo') as HTMLButtonElement).disabled = false;
+    $('#photo-error').textContent = '';
+  });
+  $('#btn-analyze-photo').addEventListener('click', analyzePhoto);
+
+  $('#food-search').addEventListener('input', (ev) => {
+    searchQuery = (ev.target as HTMLInputElement).value;
     renderModal();
   });
 

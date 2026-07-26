@@ -1893,6 +1893,146 @@ body.modal-open {
 .food-dot.good { background: var(--accent); box-shadow: 0 0 6px rgba(52, 211, 153, 0.7); }
 .food-dot.limit { background: var(--carbs); box-shadow: 0 0 6px rgba(251, 191, 36, 0.6); }
 
+/* Avisos de riesgo por alimento (selector) */
+.food-item {
+  border-left: 4px solid transparent;
+  padding-left: 12px;
+}
+.food-item.risk-good { border-left-color: var(--accent); }
+.food-item.risk-warn { border-left-color: var(--carbs); }
+.food-item.risk-bad { border-left-color: var(--danger); }
+.food-item.risk-neutral { border-left-color: rgba(255, 255, 255, 0.08); }
+
+.risk-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.risk-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.risk-badge.good {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.3);
+  color: var(--accent);
+}
+.risk-badge.warn {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: var(--carbs);
+}
+.risk-badge.bad {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.3);
+  color: var(--danger);
+}
+
+/* Insígnia Plan */
+.plan-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(129, 140, 248, 0.16);
+  color: var(--protein);
+  margin-left: 4px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ==================================================================
+   Foto de comida (Gemini)
+   ================================================================== */
+
+.photo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.photo-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 20px;
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+}
+
+.photo-icon {
+  font-size: 2rem;
+}
+
+.photo-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  max-width: 280px;
+}
+
+.photo-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.photo-preview img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.photo-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.photo-actions .btn-primary {
+  flex: 1;
+}
+
+.photo-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 16px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Input de fecha */
 
 .field input[type='date'] {

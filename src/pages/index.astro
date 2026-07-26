@@ -133,6 +133,39 @@ import Layout from '../layouts/Layout.astro';
           <div class="weekly" id="weekly"></div>
         </section>
 
+        <!-- Filtro de datos visibles en alimentos -->
+        <section class="card nutrient-filter-card">
+          <div class="nutrient-filter-head">
+            <span class="nutrient-filter-title">👁️ Datos visibles en alimentos:</span>
+          </div>
+          <div class="nutrient-filter-options">
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-protein" checked />
+              <span>Proteínas</span>
+            </label>
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-carbs" checked />
+              <span>Carbohidratos</span>
+            </label>
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-fat" checked />
+              <span>Grasas</span>
+            </label>
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-satfat" />
+              <span>Grasa saturada</span>
+            </label>
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-fiber" />
+              <span>Fibra</span>
+            </label>
+            <label class="nutrient-check-chip">
+              <input type="checkbox" id="nf-sugar" />
+              <span>Azúcares</span>
+            </label>
+          </div>
+        </section>
+
         <div id="meals" class="col" style="gap: 20px;"></div>
       </div>
     </main>

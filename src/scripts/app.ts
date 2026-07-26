@@ -91,6 +91,51 @@ let detectedPhotoItems: GeminiItem[] = [];
 let detectedPhotoSummary: GeminiAnalysis | null = null;
 let bannerDismissed = localStorage.getItem('nutritrack:banner-dismissed') === '1';
 
+interface NutrientFilters {
+  protein: boolean;
+  carbs: boolean;
+  fat: boolean;
+  satFat: boolean;
+  fiber: boolean;
+  sugar: boolean;
+}
+
+const DEFAULT_NUTRIENT_FILTERS: NutrientFilters = {
+  protein: true,
+  carbs: true,
+  fat: true,
+  satFat: false,
+  fiber: false,
+  sugar: false,
+};
+
+function getNutrientFilters(): NutrientFilters {
+  try {
+    const raw = localStorage.getItem('nutritrack:nutrient_filters');
+    return raw ? { ...DEFAULT_NUTRIENT_FILTERS, ...JSON.parse(raw) } : DEFAULT_NUTRIENT_FILTERS;
+  } catch {
+    return DEFAULT_NUTRIENT_FILTERS;
+  }
+}
+
+function saveNutrientFilters(filters: NutrientFilters): void {
+  localStorage.setItem('nutritrack:nutrient_filters', JSON.stringify(filters));
+}
+
+function syncNutrientFilterCheckboxes(): void {
+  const f = getNutrientFilters();
+  const setCheck = (id: string, checked: boolean) => {
+    const input = document.querySelector<HTMLInputElement>(id);
+    if (input) input.checked = checked;
+  };
+  setCheck('#nf-protein', f.protein);
+  setCheck('#nf-carbs', f.carbs);
+  setCheck('#nf-fat', f.fat);
+  setCheck('#nf-satfat', f.satFat);
+  setCheck('#nf-fiber', f.fiber);
+  setCheck('#nf-sugar', f.sugar);
+}
+
 /* ==================================================================
    Utilidades
    ================================================================== */
@@ -413,11 +458,13 @@ function renderChallenges(): void {
    ================================================================== */
 
 function renderMeals(): void {
+  syncNutrientFilterCheckboxes();
   const dateKey = toDateKey(selectedDate);
   const container = $('#meals');
   const showReminders = isRemindersEnabled() && dateKey === todayKey();
   const now = new Date();
   const times = getTimes();
+  const filters = getNutrientFilters();
 
   container.innerHTML = MEALS.map((meal) => {
     const entries = getEntriesForMeal(dateKey, meal);
@@ -437,18 +484,27 @@ function renderMeals(): void {
 
     const items = entries.length
       ? entries
-          .map(
-            (e) => `
+          .map((e) => {
+            const parts: string[] = [`${e.quantity} × porción`];
+            const qty = e.quantity;
+            if (filters.protein) parts.push(`P ${fmtMacro(e.protein * qty)}g`);
+            if (filters.carbs) parts.push(`C ${fmtMacro(e.carbs * qty)}g`);
+            if (filters.fat) parts.push(`G ${fmtMacro(e.fat * qty)}g`);
+            if (filters.satFat) parts.push(`G.Sat ${fmtMacro((e.satFat ?? 0) * qty)}g`);
+            if (filters.fiber) parts.push(`Fibra ${fmtMacro((e.fiber ?? 0) * qty)}g`);
+            if (filters.sugar) parts.push(`Azúcar ${fmtMacro((e.sugar ?? 0) * qty)}g`);
+
+            return `
         <li class="entry" data-id="${e.id}">
           <span class="entry-emoji">${e.emoji}</span>
           <div class="entry-info">
             <span class="entry-name">${esc(e.name)}</span>
-            <span class="entry-detail">${e.quantity} × porción · P ${fmtMacro(e.protein * e.quantity)}g · C ${fmtMacro(e.carbs * e.quantity)}g · G ${fmtMacro(e.fat * e.quantity)}g</span>
+            <span class="entry-detail">${parts.join(' · ')}</span>
           </div>
           <span class="entry-kcal">${fmt(e.calories * e.quantity)} kcal</span>
           <button class="icon-btn entry-delete" data-delete="${e.id}" aria-label="Eliminar ${esc(e.name)}">${ICONS.trash}</button>
-        </li>`
-          )
+        </li>`;
+          })
           .join('')
       : `<li class="entry-empty">Sin registros — añade tu primer alimento</li>`;
 
@@ -1364,6 +1420,25 @@ function seedDemoData(): void {
    ================================================================== */
 
 function bindEvents(): void {
+  // Filtros de datos visibles en alimentos
+  const bindFilter = (id: string, key: keyof NutrientFilters) => {
+    const el = document.querySelector<HTMLInputElement>(id);
+    if (el) {
+      el.addEventListener('change', () => {
+        const current = getNutrientFilters();
+        current[key] = el.checked;
+        saveNutrientFilters(current);
+        renderMeals();
+      });
+    }
+  };
+  bindFilter('#nf-protein', 'protein');
+  bindFilter('#nf-carbs', 'carbs');
+  bindFilter('#nf-fat', 'fat');
+  bindFilter('#nf-satfat', 'satFat');
+  bindFilter('#nf-fiber', 'fiber');
+  bindFilter('#nf-sugar', 'sugar');
+
   // Navegación de fecha
   $('#btn-prev-day').addEventListener('click', () => {
     selectedDate.setDate(selectedDate.getDate() - 1);

@@ -37,9 +37,23 @@ const PROMPT = `Analiza la comida visible en esta imagen y devuelve un objeto JS
 
 Responde ÚNICAMENTE con el JSON, sin texto adicional, sin markdown.`;
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(buffer).toString('base64');
+  }
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return btoa(binary);
+}
+
 async function callGemini(image: Blob, mimeType: string, apiKey: string): Promise<GeminiAnalysis> {
   const buffer = await image.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  const base64 = arrayBufferToBase64(buffer);
 
   const body = {
     contents: [

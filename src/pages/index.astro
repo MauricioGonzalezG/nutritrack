@@ -178,27 +178,38 @@ import Layout from '../layouts/Layout.astro';
 
         <div class="tabs">
           <button class="tab active" id="tab-buscar">🔍 Buscar</button>
-          <button class="tab" id="tab-foto">📸 Foto</button>
+          <button class="tab" id="tab-foto">🤖 IA (Foto / Texto)</button>
           <button class="tab" id="tab-custom">✏️ Personalizado</button>
         </div>
 
         <!-- Panel búsqueda: contiene buscador + panel foto (ambos dentro de "panel-buscar") -->
         <div id="panel-buscar" style="display: contents;">
-          <!-- Panel foto (Gemini IA) -->
+          <!-- Panel foto/texto (Gemini IA) -->
           <div id="panel-foto" class="hidden photo-panel">
+            <div class="photo-text-box">
+              <label for="photo-text-input" class="photo-text-label">✍️ Describe tu comida o alimento a la IA:</label>
+              <textarea id="photo-text-input" rows="2" placeholder="Ej: 1 plato de sancocho con arroz, 1 arepa de queso y café con leche..." class="photo-textarea"></textarea>
+            </div>
+
             <div class="photo-dropzone" id="photo-dropzone">
               <span class="photo-icon">📸</span>
-              <span class="photo-hint">Sube una imagen de tu galería o toma una foto del plato</span>
-              <input type="file" accept="image/*" id="photo-input" hidden />
-              <button class="btn-primary" id="btn-pick-photo">📁 Seleccionar foto / Cámara</button>
+              <span class="photo-hint">Opcional: Adjunta una foto con la cámara o desde tu galería</span>
+              <input type="file" accept="image/*" capture="environment" id="photo-input-camera" hidden />
+              <input type="file" accept="image/*" id="photo-input-gallery" hidden />
+              <div class="photo-pick-buttons">
+                <button class="btn-secondary" id="btn-take-photo">📸 Cámara</button>
+                <button class="btn-secondary" id="btn-pick-gallery">🖼️ Galería</button>
+              </div>
             </div>
+
             <div class="photo-preview hidden" id="photo-preview-wrap">
               <img id="photo-preview" alt="Vista previa" />
               <div class="photo-actions">
-                <button class="btn-ghost" id="btn-change-photo">Cambiar foto</button>
-                <button class="btn-primary" id="btn-analyze-photo" disabled>Analizar con IA ⚡</button>
+                <button class="btn-ghost" id="btn-change-photo">Quitar foto</button>
               </div>
             </div>
+
+            <button class="btn-primary btn-analyze-full" id="btn-analyze-photo" disabled>Analizar con IA ⚡</button>
             <div class="photo-loading hidden" id="photo-loading">
               <span class="spinner"></span>
               <span>Identificando alimentos con Gemini…</span>

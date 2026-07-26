@@ -636,9 +636,11 @@ function openModal(meal: MealType): void {
   $('#photo-preview-wrap').classList.add('hidden');
   $('#photo-loading').classList.add('hidden');
   $('#photo-results').classList.add('hidden');
-  ($('#photo-input') as HTMLInputElement).value = '';
-  ($('#btn-analyze-photo') as HTMLButtonElement).disabled = true;
+  ($('#photo-input-camera') as HTMLInputElement).value = '';
+  ($('#photo-input-gallery') as HTMLInputElement).value = '';
+  ($('#photo-text-input') as HTMLTextAreaElement).value = '';
   $('#photo-error').textContent = '';
+  updateAnalyzeButtonState();
   $('#modal').classList.add('open');
   document.body.classList.add('modal-open');
   renderModal();
@@ -796,16 +798,22 @@ async function compressImage(file: File, maxDim = 1280, quality = 0.8): Promise<
 }
 
 async function analyzePhoto(): Promise<void> {
-  if (!photoSelected) return;
+  const desc = ($('#photo-text-input') as HTMLTextAreaElement).value.trim();
+  if (!photoSelected && !desc) return;
+
   const btn = $('#btn-analyze-photo') as HTMLButtonElement;
   btn.disabled = true;
   $('#photo-loading').classList.remove('hidden');
   $('#photo-results').classList.add('hidden');
   $('#photo-error').textContent = '';
   try {
-    const compressed = await compressImage(photoSelected).catch(() => photoSelected);
     const form = new FormData();
-    form.append('image', compressed, 'photo.jpg');
+    if (desc) form.append('description', desc);
+
+    if (photoSelected) {
+      const compressed = await compressImage(photoSelected).catch(() => photoSelected);
+      form.append('image', compressed, 'photo.jpg');
+    }
 
     const res = await fetch('/api/analyze-photo', { method: 'POST', body: form });
     const responseText = await res.text();
@@ -834,7 +842,7 @@ async function analyzePhoto(): Promise<void> {
     btn.disabled = false;
   } catch (err) {
     $('#photo-loading').classList.add('hidden');
-    btn.disabled = false;
+    updateAnalyzeButtonState();
     $('#photo-error').textContent = '⚠️ ' + (err as Error).message;
   }
 }
@@ -1382,13 +1390,8 @@ function bindEvents(): void {
     renderModal();
   });
 
-  // Foto: elegir, arrastrar, previsualizar y analizar con Gemini
+  // Foto: tomar con cámara, elegir de galería o arrastrar
   const dropzone = $('#photo-dropzone');
-  dropzone.addEventListener('click', (ev) => {
-    if ((ev.target as HTMLElement).tagName !== 'BUTTON') {
-      ($('#photo-input') as HTMLInputElement).click();
-    }
-  });
   dropzone.addEventListener('dragover', (ev) => {
     ev.preventDefault();
     dropzone.classList.add('dragover');
@@ -1403,18 +1406,28 @@ function bindEvents(): void {
     if (file) handlePhotoFile(file);
   });
 
-  $('#btn-pick-photo').addEventListener('click', () => ($('#photo-input') as HTMLInputElement).click());
+  $('#btn-take-photo').addEventListener('click', () => ($('#photo-input-camera') as HTMLInputElement).click());
+  $('#btn-pick-gallery').addEventListener('click', () => ($('#photo-input-gallery') as HTMLInputElement).click());
   $('#btn-change-photo').addEventListener('click', () => {
+    photoSelected = null;
+    ($('#photo-input-camera') as HTMLInputElement).value = '';
+    ($('#photo-input-gallery') as HTMLInputElement).value = '';
     $('#photo-results').classList.add('hidden');
     $('#photo-dropzone').classList.remove('hidden');
     $('#photo-preview-wrap').classList.add('hidden');
-    ($('#photo-input') as HTMLInputElement).click();
+    updateAnalyzeButtonState();
   });
-  $('#photo-input').addEventListener('change', (ev) => {
+
+  $('#photo-text-input').addEventListener('input', updateAnalyzeButtonState);
+
+  const onPhotoChange = (ev: Event) => {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
     if (file) handlePhotoFile(file);
-  });
+  };
+  $('#photo-input-camera').addEventListener('change', onPhotoChange);
+  $('#photo-input-gallery').addEventListener('change', onPhotoChange);
+
   $('#btn-analyze-photo').addEventListener('click', analyzePhoto);
   $('#btn-add-photo-items').addEventListener('click', addSelectedPhotoItems);
   $('#btn-edit-single-custom').addEventListener('click', editPhotoSingleCustom);

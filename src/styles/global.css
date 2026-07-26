@@ -1960,6 +1960,44 @@ body.modal-open {
   gap: 12px;
 }
 
+.photo-text-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.photo-text-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.photo-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+  min-height: 56px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.photo-textarea:focus {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-analyze-full {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.95rem;
+}
+
 .photo-dropzone {
   display: flex;
   flex-direction: column;
@@ -1988,6 +2026,18 @@ body.modal-open {
   font-size: 0.82rem;
   color: var(--text-muted);
   max-width: 280px;
+}
+
+.photo-pick-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 4px;
+}
+
+.photo-pick-buttons button {
+  flex: 1;
 }
 
 .photo-preview {

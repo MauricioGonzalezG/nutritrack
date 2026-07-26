@@ -26,7 +26,7 @@ export interface GeminiAnalysis extends GeminiItem {
   items: GeminiItem[];
 }
 
-const PROMPT = `Analiza la comida visible en esta imagen. Identifica si hay uno o varios alimentos por separado (ej: si ves un plato con arroz, pollo y ensalada, desglosa los componentes por separado).
+const PROMPT = `Analiza la comida o alimento descrito o visible en la imagen. Identifica si hay uno o varios alimentos por separado (ej: si hay un plato con arroz, pollo y ensalada, desglosa los componentes por separado).
 
 Devuelve ÚNICAMENTE un objeto JSON sin formato markdown ni texto adicional con esta estructura:
 {
@@ -44,7 +44,7 @@ Devuelve ÚNICAMENTE un objeto JSON sin formato markdown ni texto adicional con 
       "serving": "descripción breve de porción (ej: 1 taza / 150g)"
     }
   ],
-  "name": "nombre resumido del plato o comida completa (ej: Plato de pollo con arroz)",
+  "name": "nombre resumido del plato o comida completa",
   "emoji": "UN emoji general",
   "calories": kilocalorías_totales_del_plato,
   "protein": gramos_proteína_totales,
@@ -53,11 +53,11 @@ Devuelve ÚNICAMENTE un objeto JSON sin formato markdown ni texto adicional con 
   "satFat": gramos_grasa_saturada_totales,
   "fiber": gramos_fibra_totales,
   "sugar": gramos_azúcares_totales,
-  "serving": "1 plato completo",
+  "serving": "1 porción / plato completo",
   "confidence": "high" | "medium" | "low"
 }
 
-Si la foto contiene un solo alimento o producto, la lista "items" debe contener ese único alimento.`;
+Si la entrada contiene un solo alimento o producto, la lista "items" debe contener ese único alimento.`;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== 'undefined') {
@@ -73,19 +73,30 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-async function callGemini(image: Blob, mimeType: string, apiKey: string): Promise<any> {
-  const buffer = await image.arrayBuffer();
-  const base64 = arrayBufferToBase64(buffer);
+async function callGemini(
+  image: Blob | null,
+  description: string,
+  mimeType: string,
+  apiKey: string
+): Promise<any> {
+  let promptText = PROMPT;
+  if (description.trim()) {
+    promptText += `\n\nDESCRIPCIÓN O NOTAS DEL USUARIO SOBRE LA COMIDA:\n"${description.trim()}"`;
+  }
+  if (!image) {
+    promptText += `\n\nNota: No se adjuntó imagen. Basa la estimación nutricional ÚNICAMENTE en la descripción en texto del usuario.`;
+  }
+
+  const parts: any[] = [{ text: promptText }];
+
+  if (image && image.size > 0) {
+    const buffer = await image.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
+    parts.push({ inline_data: { mime_type: mimeType, data: base64 } });
+  }
 
   const body = {
-    contents: [
-      {
-        parts: [
-          { text: PROMPT },
-          { inline_data: { mime_type: mimeType, data: base64 } },
-        ],
-      },
-    ],
+    contents: [{ parts }],
     generationConfig: {
       response_mime_type: 'application/json',
       temperature: 0.2,
@@ -124,24 +135,37 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
 
-/** POST /api/analyze-photo  multipart/form-data con campo "image" */
+/** POST /api/analyze-photo  multipart/form-data con campo "image" (opcional) y "description" (opcional) */
 export const POST: APIRoute = async ({ request }) => {
   const apiKey = import.meta.env.GEMINI_API_KEY as string | undefined;
   if (!apiKey) return json({ error: 'no-api-key', message: 'Falta GEMINI_API_KEY en el servidor.' }, 503);
 
   let image: File | null = null;
+  let description = '';
   try {
     const form = await request.formData();
     image = form.get('image') as File | null;
+    description = String(form.get('description') || '');
   } catch {
     return json({ error: 'bad-form' }, 400);
   }
-  if (!image || !image.size) return json({ error: 'no-image' }, 400);
-  if (!image.type.startsWith('image/')) return json({ error: 'not-image' }, 400);
-  if (image.size > 8 * 1024 * 1024) return json({ error: 'too-big', message: 'La imagen supera 8 MB.' }, 413);
+
+  const hasImage = Boolean(image && image.size > 0);
+  const hasDesc = Boolean(description.trim().length > 0);
+
+  if (!hasImage && !hasDesc) {
+    return json({ error: 'no-input', message: 'Escribe una descripción de la comida o selecciona una foto.' }, 400);
+  }
+
+  if (hasImage && !image!.type.startsWith('image/')) {
+    return json({ error: 'not-image' }, 400);
+  }
+  if (hasImage && image!.size > 8 * 1024 * 1024) {
+    return json({ error: 'too-big', message: 'La imagen supera 8 MB.' }, 413);
+  }
 
   try {
-    const raw = await callGemini(image, image.type || 'image/jpeg', apiKey);
+    const raw = await callGemini(hasImage ? image : null, description, image?.type || 'image/jpeg', apiKey);
 
     const cleanItem = (item: any): GeminiItem => ({
       name: String(item?.name || 'Alimento').slice(0, 50),

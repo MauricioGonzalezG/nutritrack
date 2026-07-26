@@ -15,6 +15,7 @@ import {
   setGoals,
   setLabs,
   setProfile,
+  subscribe,
   toDateKey,
   todayKey,
   toggleChallenge,
@@ -860,8 +861,9 @@ function renderPhotoResults(): void {
   }
 
   detectedPhotoItems.forEach((item, index) => {
-    const card = document.createElement('label');
+    const card = document.createElement('div');
     card.className = 'photo-item-card';
+    card.setAttribute('data-index', String(index));
     card.innerHTML = `
       <input type="checkbox" class="photo-item-checkbox" data-index="${index}" checked />
       <div class="photo-item-info">
@@ -875,6 +877,17 @@ function renderPhotoResults(): void {
 
   updateAddPhotoButtonText();
   container.classList.remove('hidden');
+
+  list.querySelectorAll('.photo-item-card').forEach((card) => {
+    card.addEventListener('click', (ev) => {
+      const target = ev.target as HTMLElement;
+      const cb = card.querySelector<HTMLInputElement>('.photo-item-checkbox');
+      if (cb && target !== cb) {
+        cb.checked = !cb.checked;
+        updateAddPhotoButtonText();
+      }
+    });
+  });
 
   list.querySelectorAll('.photo-item-checkbox').forEach((cb) => {
     cb.addEventListener('change', updateAddPhotoButtonText);
@@ -891,7 +904,7 @@ function updateAddPhotoButtonText(): void {
     btnAdd.textContent = 'Selecciona al menos 1';
   } else if (count === 1) {
     btnAdd.disabled = false;
-    btnAdd.textContent = 'Añadir alimento';
+    btnAdd.textContent = 'Añadir 1 alimento';
   } else {
     btnAdd.disabled = false;
     btnAdd.textContent = `Añadir los ${count} alimentos`;
@@ -900,24 +913,35 @@ function updateAddPhotoButtonText(): void {
 
 function addSelectedPhotoItems(): void {
   const checkboxes = document.querySelectorAll<HTMLInputElement>('.photo-item-checkbox:checked');
-  if (checkboxes.length === 0) return;
+  const itemsToAdd: GeminiItem[] = [];
 
-  checkboxes.forEach((cb) => {
-    const index = Number(cb.dataset.index);
-    const item = detectedPhotoItems[index];
-    if (!item) return;
+  if (checkboxes.length > 0) {
+    checkboxes.forEach((cb) => {
+      const index = Number(cb.dataset.index);
+      if (detectedPhotoItems[index]) {
+        itemsToAdd.push(detectedPhotoItems[index]);
+      }
+    });
+  } else if (detectedPhotoSummary) {
+    itemsToAdd.push(detectedPhotoSummary);
+  } else if (detectedPhotoItems.length > 0) {
+    itemsToAdd.push(...detectedPhotoItems);
+  }
 
+  if (itemsToAdd.length === 0) return;
+
+  itemsToAdd.forEach((item) => {
     const entry = addEntry({
       foodId: null,
-      name: item.name,
+      name: item.name || 'Alimento',
       emoji: item.emoji || '🍽️',
-      calories: item.calories,
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
-      satFat: item.satFat,
-      fiber: item.fiber,
-      sugar: item.sugar,
+      calories: Math.round(Number(item.calories) || 0),
+      protein: Math.round((Number(item.protein) || 0) * 10) / 10,
+      carbs: Math.round((Number(item.carbs) || 0) * 10) / 10,
+      fat: Math.round((Number(item.fat) || 0) * 10) / 10,
+      satFat: Math.round((Number(item.satFat) || 0) * 10) / 10,
+      fiber: Math.round((Number(item.fiber) || 0) * 10) / 10,
+      sugar: Math.round((Number(item.sugar) || 0) * 10) / 10,
       meal: modalMeal,
       quantity: 1,
       date: toDateKey(selectedDate),
@@ -950,9 +974,9 @@ function editPhotoSingleCustom(): void {
 function confirmCustom(): void {
   const name = ($('#custom-name') as HTMLInputElement).value.trim();
   const kcal = Number(($('#custom-kcal') as HTMLInputElement).value) || 0;
-  if (!name || kcal <= 0) {
+  if (!name) {
     ($('#custom-name') as HTMLInputElement).focus();
-    $('#custom-error').textContent = !name ? 'Escribe un nombre para el alimento.' : 'Las calorías deben ser mayores que 0.';
+    $('#custom-error').textContent = 'Escribe un nombre para el alimento.';
     return;
   }
   $('#custom-error').textContent = '';
@@ -1526,6 +1550,8 @@ function bindEvents(): void {
 /* ==================================================================
    Init
    ================================================================== */
+
+subscribe(() => renderAll());
 
 seedDemoData();
 bindEvents();

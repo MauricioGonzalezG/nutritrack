@@ -116,9 +116,10 @@ export async function initSync(onHydrated: () => void): Promise<void> {
     const state = (await res.json()) as StateResponse;
     remote = true;
     await reconcile(state);
-    onHydrated();
   } catch {
     remote = false; // modo local
+  } finally {
+    onHydrated();
   }
 }
 

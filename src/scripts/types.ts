@@ -12,6 +12,7 @@ export interface Food {
   fiber: number; // fibra (g) — ayuda a reducir colesterol
   sugar: number; // azúcares (g) — clave para triglicéridos
   serving: string; // descripción de la porción
+  isCustom?: boolean; // indica si fue guardado por el usuario
 }
 
 export interface FoodEntry {

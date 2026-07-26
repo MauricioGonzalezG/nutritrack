@@ -12,6 +12,7 @@ import {
   getProfile,
   getWeekCalories,
   removeEntry,
+  saveCustomFood,
   setGoals,
   setLabs,
   setProfile,
@@ -698,8 +699,9 @@ function renderModal(): void {
       ? results
           .map((f) => {
             const risk = foodRisk(f);
-            const badges = risk.reasons.length
-              ? `<div class="risk-badges">${risk.reasons
+            const isCustomBadge = f.isCustom ? `<span class="risk-badge low">⭐ Mi Alimento</span>` : '';
+            const badges = (risk.reasons.length || f.isCustom)
+              ? `<div class="risk-badges">${isCustomBadge}${risk.reasons
                   .slice(0, 2)
                   .map((r) => `<span class="risk-badge ${risk.level}">${esc(r)}</span>`)
                   .join('')}</div>`
@@ -943,8 +945,7 @@ function addSelectedPhotoItems(): void {
   if (itemsToAdd.length === 0) return;
 
   itemsToAdd.forEach((item) => {
-    const entry = addEntry({
-      foodId: null,
+    const customFood = saveCustomFood({
       name: item.name || 'Alimento',
       emoji: item.emoji || '🍽️',
       calories: Math.round(Number(item.calories) || 0),
@@ -954,6 +955,20 @@ function addSelectedPhotoItems(): void {
       satFat: Math.round((Number(item.satFat) || 0) * 10) / 10,
       fiber: Math.round((Number(item.fiber) || 0) * 10) / 10,
       sugar: Math.round((Number(item.sugar) || 0) * 10) / 10,
+      serving: item.serving || '1 porción',
+    });
+
+    const entry = addEntry({
+      foodId: customFood.id,
+      name: customFood.name,
+      emoji: customFood.emoji,
+      calories: customFood.calories,
+      protein: customFood.protein,
+      carbs: customFood.carbs,
+      fat: customFood.fat,
+      satFat: customFood.satFat,
+      fiber: customFood.fiber,
+      sugar: customFood.sugar,
       meal: modalMeal,
       quantity: 1,
       date: toDateKey(selectedDate),
@@ -993,8 +1008,27 @@ function confirmCustom(): void {
   }
   $('#custom-error').textContent = '';
   const val = (id: string) => Number(($(id) as HTMLInputElement).value) || 0;
+  const shouldSaveLibrary = ($('#custom-save-library') as HTMLInputElement)?.checked ?? true;
+
+  let foodId: string | null = null;
+  if (shouldSaveLibrary) {
+    const customFood = saveCustomFood({
+      name,
+      emoji: '🍽️',
+      calories: kcal,
+      protein: val('#custom-protein'),
+      carbs: val('#custom-carbs'),
+      fat: val('#custom-fat'),
+      satFat: val('#custom-satfat'),
+      fiber: val('#custom-fiber'),
+      sugar: val('#custom-sugar'),
+      serving: '1 porción',
+    });
+    foodId = customFood.id;
+  }
+
   const entry = addEntry({
-    foodId: null,
+    foodId,
     name,
     emoji: '🍽️',
     calories: kcal,

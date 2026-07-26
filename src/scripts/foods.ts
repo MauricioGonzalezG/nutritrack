@@ -309,12 +309,20 @@ export const FOODS: Food[] = [
   { id: 'cafe-tinto', name: 'Café tinto', emoji: '☕', calories: 2, protein: 0.3, carbs: 0, fat: 0, satFat: 0, fiber: 0, sugar: 0, serving: '1 taza (60 ml)' },
 ];
 
+import { getCustomFoods } from './store';
+
+export function getAllFoods(): Food[] {
+  const custom = getCustomFoods();
+  return [...custom, ...FOODS];
+}
+
 export function findFood(id: string): Food | undefined {
-  return FOODS.find((f) => f.id === id);
+  return getAllFoods().find((f) => f.id === id);
 }
 
 export function searchFoods(query: string): Food[] {
+  const all = getAllFoods();
   const q = query.trim().toLowerCase();
-  if (!q) return FOODS;
-  return FOODS.filter((f) => f.name.toLowerCase().includes(q));
+  if (!q) return all;
+  return all.filter((f) => f.name.toLowerCase().includes(q));
 }

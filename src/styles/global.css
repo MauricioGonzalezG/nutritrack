@@ -2018,6 +2018,28 @@ body.modal-open {
   background: rgba(94, 234, 212, 0.06);
 }
 
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.checkbox-label input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .photo-icon {
   font-size: 2rem;
 }

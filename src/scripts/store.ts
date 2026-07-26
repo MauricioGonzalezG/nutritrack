@@ -1,10 +1,11 @@
-import type { ChallengeState, DayTotals, FoodEntry, Goals, LabResults, MealType, Profile } from './types';
+import type { ChallengeState, DayTotals, Food, FoodEntry, Goals, LabResults, MealType, Profile } from './types';
 
 const ENTRIES_KEY = 'nutritrack:entries';
 const GOALS_KEY = 'nutritrack:goals';
 const PROFILE_KEY = 'nutritrack:profile';
 const CHALLENGES_KEY = 'nutritrack:challenges';
 const LABS_KEY = 'nutritrack:labs';
+const CUSTOM_FOODS_KEY = 'nutritrack:custom_foods';
 
 export const DEFAULT_GOALS: Goals = {
   calories: 2000,
@@ -194,6 +195,45 @@ export function hydrateFromServer(
   if (challenges) save(CHALLENGES_KEY, challenges);
   if (labs) save(LABS_KEY, labs);
   notify();
+}
+
+/* ---------- Alimentos personalizados ---------- */
+
+export function getCustomFoods(): Food[] {
+  return load<Food[]>(CUSTOM_FOODS_KEY, []);
+}
+
+export function saveCustomFood(food: Omit<Food, 'id'> & { id?: string }): Food {
+  const customFoods = getCustomFoods();
+  const nameClean = food.name.trim();
+  const existingIndex = customFoods.findIndex(
+    (f) => (food.id && f.id === food.id) || f.name.trim().toLowerCase() === nameClean.toLowerCase()
+  );
+
+  const full: Food = {
+    id: food.id || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: nameClean,
+    emoji: food.emoji || '🍽️',
+    calories: Math.round(Number(food.calories) || 0),
+    protein: Math.round((Number(food.protein) || 0) * 10) / 10,
+    carbs: Math.round((Number(food.carbs) || 0) * 10) / 10,
+    fat: Math.round((Number(food.fat) || 0) * 10) / 10,
+    satFat: Math.round((Number(food.satFat) || 0) * 10) / 10,
+    fiber: Math.round((Number(food.fiber) || 0) * 10) / 10,
+    sugar: Math.round((Number(food.sugar) || 0) * 10) / 10,
+    serving: food.serving?.trim() || '1 porción',
+    isCustom: true,
+  };
+
+  if (existingIndex >= 0) {
+    customFoods[existingIndex] = full;
+  } else {
+    customFoods.unshift(full);
+  }
+
+  save(CUSTOM_FOODS_KEY, customFoods);
+  notify();
+  return full;
 }
 
 /* ---------- Suscripción a cambios ---------- */

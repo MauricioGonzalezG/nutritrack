@@ -96,7 +96,10 @@ let bannerDismissed = localStorage.getItem('nutritrack:banner-dismissed') === '1
 
 function $(selector: string): HTMLElement {
   const el = document.querySelector<HTMLElement>(selector);
-  if (!el) throw new Error(`Elemento no encontrado: ${selector}`);
+  if (!el) {
+    console.warn(`[NutriTrack] Elemento no encontrado: ${selector}`);
+    return document.createElement('div');
+  }
   return el;
 }
 
@@ -1551,28 +1554,35 @@ function bindEvents(): void {
    Init
    ================================================================== */
 
-subscribe(() => renderAll());
+function initApp(): void {
+  try {
+    subscribe(() => renderAll());
+    seedDemoData();
+    bindEvents();
+    renderAll();
 
-seedDemoData();
-bindEvents();
-renderAll();
+    void registerServiceWorker().then(async () => {
+      navigator.serviceWorker?.addEventListener('message', (ev) => {
+        if (ev.data?.type === 'open-meal' && ev.data.meal) {
+          openModal(ev.data.meal as MealType);
+        }
+      });
+      if (isRemindersEnabled() && getPermission() === 'granted') {
+        await scheduleToday();
+      }
+    });
 
-// Service Worker para notificaciones + programar recordatorios del día
-registerServiceWorker().then(async () => {
-  // Escuchar mensajes del SW: click en notificación → abrir comida
-  navigator.serviceWorker?.addEventListener('message', (ev) => {
-    if (ev.data?.type === 'open-meal' && ev.data.meal) {
-      openModal(ev.data.meal as MealType);
-    }
-  });
-  // Re-programar para el día cada vez que la app se carga
-  if (isRemindersEnabled() && getPermission() === 'granted') {
-    await scheduleToday();
+    void initSync(() => renderAll());
+  } catch (err) {
+    console.error('[NutriTrack] Error durante la inicialización:', err);
   }
-});
+}
 
-// Si hay base de datos configurada, el estado remoto reemplaza al local.
-initSync(() => renderAll());
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 // Re-programar al volver a la pestaña (por si la fecha cambió o la app quedó abierta)
 document.addEventListener('visibilitychange', () => {

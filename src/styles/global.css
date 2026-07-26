@@ -1970,6 +1970,14 @@ body.modal-open {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.03);
   text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.photo-dropzone:hover,
+.photo-dropzone.dragover {
+  border-color: var(--accent);
+  background: rgba(94, 234, 212, 0.06);
 }
 
 .photo-icon {
@@ -2031,6 +2039,100 @@ body.modal-open {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Resultados multi-alimento IA */
+.photo-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.photo-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.photo-results-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.photo-results-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.photo-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.photo-item-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.photo-item-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.photo-item-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.photo-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.photo-item-name {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.photo-item-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.photo-item-kcal {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.photo-results-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.photo-results-actions button {
+  flex: 1;
 }
 
 /* Input de fecha */

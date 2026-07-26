@@ -1,3 +1,4 @@
+import type { GeminiAnalysis, GeminiItem } from '../pages/api/analyze-photo';
 import { FOODS, searchFoods } from './foods';
 import {
   addEntry,
@@ -84,6 +85,8 @@ let quantity = 1;
 let searchQuery = '';
 let modalTab: 'buscar' | 'foto' | 'personalizado' = 'buscar';
 let photoSelected: File | null = null;
+let detectedPhotoItems: GeminiItem[] = [];
+let detectedPhotoSummary: GeminiAnalysis | null = null;
 let bannerDismissed = localStorage.getItem('nutritrack:banner-dismissed') === '1';
 
 /* ==================================================================
@@ -627,9 +630,12 @@ function openModal(meal: MealType): void {
   searchQuery = '';
   modalTab = 'buscar';
   photoSelected = null;
+  detectedPhotoItems = [];
+  detectedPhotoSummary = null;
   $('#photo-dropzone').classList.remove('hidden');
   $('#photo-preview-wrap').classList.add('hidden');
   $('#photo-loading').classList.add('hidden');
+  $('#photo-results').classList.add('hidden');
   ($('#photo-input') as HTMLInputElement).value = '';
   ($('#btn-analyze-photo') as HTMLButtonElement).disabled = true;
   $('#photo-error').textContent = '';
@@ -737,47 +743,200 @@ function confirmAdd(): void {
   renderAll();
 }
 
+function handlePhotoFile(file: File): void {
+  if (!file || !file.type.startsWith('image/')) return;
+  photoSelected = file;
+  const url = URL.createObjectURL(file);
+  ($('#photo-preview') as HTMLImageElement).src = url;
+  $('#photo-preview-wrap').classList.remove('hidden');
+  $('#photo-dropzone').classList.add('hidden');
+  $('#photo-results').classList.add('hidden');
+  ($('#btn-analyze-photo') as HTMLButtonElement).disabled = false;
+  $('#photo-error').textContent = '';
+}
+
+async function compressImage(file: File, maxDim = 1280, quality = 0.8): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => resolve(blob || file),
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
+    img.src = url;
+  });
+}
+
 async function analyzePhoto(): Promise<void> {
   if (!photoSelected) return;
   const btn = $('#btn-analyze-photo') as HTMLButtonElement;
   btn.disabled = true;
   $('#photo-loading').classList.remove('hidden');
+  $('#photo-results').classList.add('hidden');
   $('#photo-error').textContent = '';
   try {
+    const compressed = await compressImage(photoSelected).catch(() => photoSelected);
     const form = new FormData();
-    form.append('image', photoSelected);
+    form.append('image', compressed, 'photo.jpg');
+
     const res = await fetch('/api/analyze-photo', { method: 'POST', body: form });
-    const data = (await res.json()) as { ok?: true; result?: any; error?: string; message?: string };
+    const responseText = await res.text();
+
+    let data: { ok?: true; result?: GeminiAnalysis; error?: string; message?: string } = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      if (res.status === 413 || responseText.includes('Request Entity') || responseText.includes('Too Large')) {
+        throw new Error('La imagen es demasiado grande para el servidor. Intenta con otra imagen.');
+      }
+      throw new Error(`Error del servidor (${res.status}): ${responseText.slice(0, 100)}`);
+    }
+
     if (!res.ok || !data.ok || !data.result) {
       throw new Error(data.message || data.error || 'No se pudo analizar (HTTP ' + res.status + ')');
     }
     const r = data.result;
-    // Pre-llenar la pestaña "Personalizado" con los valores de Gemini
-    ($('#custom-name') as HTMLInputElement).value = r.name || 'Alimento de la foto';
-    ($('#custom-kcal') as HTMLInputElement).value = String(r.calories || '');
-    ($('#custom-protein') as HTMLInputElement).value = String(r.protein || '');
-    ($('#custom-carbs') as HTMLInputElement).value = String(r.carbs || '');
-    ($('#custom-fat') as HTMLInputElement).value = String(r.fat || '');
-    ($('#custom-satfat') as HTMLInputElement).value = String(r.satFat || '');
-    ($('#custom-fiber') as HTMLInputElement).value = String(r.fiber || '');
-    ($('#custom-sugar') as HTMLInputElement).value = String(r.sugar || '');
-    // Cambiar a la pestaña personalizado para revisar y añadir
-    modalTab = 'personalizado';
-    renderModal();
-    // Bandeja confirmación visible encima del form
-    $('#custom-error').textContent =
-      `✅ IA detectó: ${r.emoji || '🍽️'} ${r.name} (${r.calories} kcal, conf. ${r.confidence || 'media'}). Revisa y pulsa “Añadir”.`;
-    // Limpieza de UI de foto
+    detectedPhotoSummary = r;
+    detectedPhotoItems = Array.isArray(r.items) && r.items.length > 0 ? r.items : [r];
+
+    renderPhotoResults();
+
     $('#photo-loading').classList.add('hidden');
     $('#photo-preview-wrap').classList.add('hidden');
-    $('#photo-dropzone').classList.remove('hidden');
     btn.disabled = false;
-    photoSelected = null;
   } catch (err) {
     $('#photo-loading').classList.add('hidden');
     btn.disabled = false;
     $('#photo-error').textContent = '⚠️ ' + (err as Error).message;
   }
+}
+
+function renderPhotoResults(): void {
+  const container = $('#photo-results');
+  const list = $('#photo-items-list');
+  const subtitle = $('#photo-results-subtitle');
+  if (!container || !list) return;
+
+  list.innerHTML = '';
+  const count = detectedPhotoItems.length;
+  if (subtitle) {
+    subtitle.textContent = count > 1 ? `${count} alimentos detectados` : `1 alimento detectado`;
+  }
+
+  detectedPhotoItems.forEach((item, index) => {
+    const card = document.createElement('label');
+    card.className = 'photo-item-card';
+    card.innerHTML = `
+      <input type="checkbox" class="photo-item-checkbox" data-index="${index}" checked />
+      <div class="photo-item-info">
+        <span class="photo-item-name">${esc(item.emoji || '🍽️')} ${esc(item.name)}</span>
+        <span class="photo-item-sub">${esc(item.serving || '')} • P:${item.protein}g | C:${item.carbs}g | G:${item.fat}g</span>
+      </div>
+      <span class="photo-item-kcal">${item.calories} kcal</span>
+    `;
+    list.appendChild(card);
+  });
+
+  updateAddPhotoButtonText();
+  container.classList.remove('hidden');
+
+  list.querySelectorAll('.photo-item-checkbox').forEach((cb) => {
+    cb.addEventListener('change', updateAddPhotoButtonText);
+  });
+}
+
+function updateAddPhotoButtonText(): void {
+  const btnAdd = $('#btn-add-photo-items') as HTMLButtonElement;
+  if (!btnAdd) return;
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('.photo-item-checkbox:checked');
+  const count = checkboxes.length;
+  if (count === 0) {
+    btnAdd.disabled = true;
+    btnAdd.textContent = 'Selecciona al menos 1';
+  } else if (count === 1) {
+    btnAdd.disabled = false;
+    btnAdd.textContent = 'Añadir alimento';
+  } else {
+    btnAdd.disabled = false;
+    btnAdd.textContent = `Añadir los ${count} alimentos`;
+  }
+}
+
+function addSelectedPhotoItems(): void {
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('.photo-item-checkbox:checked');
+  if (checkboxes.length === 0) return;
+
+  checkboxes.forEach((cb) => {
+    const index = Number(cb.dataset.index);
+    const item = detectedPhotoItems[index];
+    if (!item) return;
+
+    const entry = addEntry({
+      foodId: null,
+      name: item.name,
+      emoji: item.emoji || '🍽️',
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      satFat: item.satFat,
+      fiber: item.fiber,
+      sugar: item.sugar,
+      meal: modalMeal,
+      quantity: 1,
+      date: toDateKey(selectedDate),
+    });
+    pushEntry(entry);
+  });
+
+  closeModal();
+  renderAll();
+}
+
+function editPhotoSingleCustom(): void {
+  const item = detectedPhotoSummary || detectedPhotoItems[0];
+  if (!item) return;
+
+  ($('#custom-name') as HTMLInputElement).value = item.name || 'Alimento de la foto';
+  ($('#custom-kcal') as HTMLInputElement).value = String(item.calories || '');
+  ($('#custom-protein') as HTMLInputElement).value = String(item.protein || '');
+  ($('#custom-carbs') as HTMLInputElement).value = String(item.carbs || '');
+  ($('#custom-fat') as HTMLInputElement).value = String(item.fat || '');
+  ($('#custom-satfat') as HTMLInputElement).value = String(item.satFat || '');
+  ($('#custom-fiber') as HTMLInputElement).value = String(item.fiber || '');
+  ($('#custom-sugar') as HTMLInputElement).value = String(item.sugar || '');
+
+  modalTab = 'personalizado';
+  renderModal();
+  $('#custom-error').textContent = `✅ Valores cargados de foto. Revisa y pulsa “Añadir”.`;
 }
 
 function confirmCustom(): void {
@@ -1223,22 +1382,42 @@ function bindEvents(): void {
     renderModal();
   });
 
-  // Foto: elegir, previsualizar y analizar con Gemini
+  // Foto: elegir, arrastrar, previsualizar y analizar con Gemini
+  const dropzone = $('#photo-dropzone');
+  dropzone.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).tagName !== 'BUTTON') {
+      ($('#photo-input') as HTMLInputElement).click();
+    }
+  });
+  dropzone.addEventListener('dragover', (ev) => {
+    ev.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+  });
+  dropzone.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = ev.dataTransfer?.files?.[0];
+    if (file) handlePhotoFile(file);
+  });
+
   $('#btn-pick-photo').addEventListener('click', () => ($('#photo-input') as HTMLInputElement).click());
-  $('#btn-change-photo').addEventListener('click', () => ($('#photo-input') as HTMLInputElement).click());
+  $('#btn-change-photo').addEventListener('click', () => {
+    $('#photo-results').classList.add('hidden');
+    $('#photo-dropzone').classList.remove('hidden');
+    $('#photo-preview-wrap').classList.add('hidden');
+    ($('#photo-input') as HTMLInputElement).click();
+  });
   $('#photo-input').addEventListener('change', (ev) => {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) return;
-    photoSelected = file;
-    const url = URL.createObjectURL(file);
-    ($('#photo-preview') as HTMLImageElement).src = url;
-    $('#photo-preview-wrap').classList.remove('hidden');
-    $('#photo-dropzone').classList.add('hidden');
-    ($('#btn-analyze-photo') as HTMLButtonElement).disabled = false;
-    $('#photo-error').textContent = '';
+    if (file) handlePhotoFile(file);
   });
   $('#btn-analyze-photo').addEventListener('click', analyzePhoto);
+  $('#btn-add-photo-items').addEventListener('click', addSelectedPhotoItems);
+  $('#btn-edit-single-custom').addEventListener('click', editPhotoSingleCustom);
 
   $('#food-search').addEventListener('input', (ev) => {
     searchQuery = (ev.target as HTMLInputElement).value;

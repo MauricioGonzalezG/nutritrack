@@ -8,7 +8,7 @@ const json = (data: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-interface GeminiAnalysis {
+export interface GeminiItem {
   name: string;
   emoji: string;
   calories: number;
@@ -19,23 +19,45 @@ interface GeminiAnalysis {
   fiber: number;
   sugar: number;
   serving: string;
-  confidence: 'high' | 'medium' | 'low' | string;
 }
 
-const PROMPT = `Analiza la comida visible en esta imagen y devuelve un objeto JSON con estos campos EXACTOS (todos los valores nutricionales en gramos o kcal por la porción visible):
-- name: nombre del plato o alimento principal, en español, máx 40 caracteres
-- emoji: UN emoji que represente la comida (ej: "🍕")
-- calories: kilocalorías totales estimadas del plato (número)
-- protein: gramos de proteína (número)
-- carbs: gramos de carbohidratos (número)
-- fat: gramos de grasa total (número)
-- satFat: gramos de grasa saturada estimada (número)
-- fiber: gramos de fibra (número)
-- sugar: gramos de azúcares (número)
-- serving: descripción breve de la porción (ej: "1 plato (300 g)", "1 porción mediana")
-- confidence: nivel de confianza: "high", "medium" o "low"
+export interface GeminiAnalysis extends GeminiItem {
+  confidence: 'high' | 'medium' | 'low' | string;
+  items: GeminiItem[];
+}
 
-Responde ÚNICAMENTE con el JSON, sin texto adicional, sin markdown.`;
+const PROMPT = `Analiza la comida visible en esta imagen. Identifica si hay uno o varios alimentos por separado (ej: si ves un plato con arroz, pollo y ensalada, desglosa los componentes por separado).
+
+Devuelve ÚNICAMENTE un objeto JSON sin formato markdown ni texto adicional con esta estructura:
+{
+  "items": [
+    {
+      "name": "nombre del alimento individual en español, máx 35 caracteres",
+      "emoji": "UN emoji relevante (ej: 🍚)",
+      "calories": kilocalorías_estimadas_de_este_alimento,
+      "protein": gramos_proteína,
+      "carbs": gramos_carbohidratos,
+      "fat": gramos_grasa,
+      "satFat": gramos_grasa_saturada,
+      "fiber": gramos_fibra,
+      "sugar": gramos_azúcares,
+      "serving": "descripción breve de porción (ej: 1 taza / 150g)"
+    }
+  ],
+  "name": "nombre resumido del plato o comida completa (ej: Plato de pollo con arroz)",
+  "emoji": "UN emoji general",
+  "calories": kilocalorías_totales_del_plato,
+  "protein": gramos_proteína_totales,
+  "carbs": gramos_carbohidratos_totales,
+  "fat": gramos_grasa_totales,
+  "satFat": gramos_grasa_saturada_totales,
+  "fiber": gramos_fibra_totales,
+  "sugar": gramos_azúcares_totales,
+  "serving": "1 plato completo",
+  "confidence": "high" | "medium" | "low"
+}
+
+Si la foto contiene un solo alimento o producto, la lista "items" debe contener ese único alimento.`;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   if (typeof Buffer !== 'undefined') {
@@ -51,7 +73,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-async function callGemini(image: Blob, mimeType: string, apiKey: string): Promise<GeminiAnalysis> {
+async function callGemini(image: Blob, mimeType: string, apiKey: string): Promise<any> {
   const buffer = await image.arrayBuffer();
   const base64 = arrayBufferToBase64(buffer);
 
@@ -88,16 +110,13 @@ async function callGemini(image: Blob, mimeType: string, apiKey: string): Promis
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Respuesta vacía de Gemini');
 
-  let parsed: GeminiAnalysis;
   try {
-    parsed = JSON.parse(text) as GeminiAnalysis;
+    return JSON.parse(text);
   } catch {
-    // extraer JSON del texto
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No se pudo parsear la respuesta');
-    parsed = JSON.parse(match[0]) as GeminiAnalysis;
+    if (!match) throw new Error('No se pudo parsear la respuesta de Gemini');
+    return JSON.parse(match[0]);
   }
-  return parsed;
 }
 
 const num = (v: unknown): number => {
@@ -123,19 +142,30 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const raw = await callGemini(image, image.type || 'image/jpeg', apiKey);
+
+    const cleanItem = (item: any): GeminiItem => ({
+      name: String(item?.name || 'Alimento').slice(0, 50),
+      emoji: String(item?.emoji || '🍽️').slice(0, 8),
+      calories: Math.round(num(item?.calories)),
+      protein: Math.round(num(item?.protein) * 10) / 10,
+      carbs: Math.round(num(item?.carbs) * 10) / 10,
+      fat: Math.round(num(item?.fat) * 10) / 10,
+      satFat: Math.round(num(item?.satFat) * 10) / 10,
+      fiber: Math.round(num(item?.fiber) * 10) / 10,
+      sugar: Math.round(num(item?.sugar) * 10) / 10,
+      serving: String(item?.serving || '1 porción').slice(0, 60),
+    });
+
+    const totalSummary = cleanItem(raw);
+    const rawItems: any[] = Array.isArray(raw?.items) && raw.items.length > 0 ? raw.items : [raw];
+    const items: GeminiItem[] = rawItems.map(cleanItem);
+
     const result: GeminiAnalysis = {
-      name: String(raw.name || 'Alimento detectado').slice(0, 50),
-      emoji: String(raw.emoji || '🍽️').slice(0, 8),
-      calories: Math.round(num(raw.calories)),
-      protein: Math.round(num(raw.protein) * 10) / 10,
-      carbs: Math.round(num(raw.carbs) * 10) / 10,
-      fat: Math.round(num(raw.fat) * 10) / 10,
-      satFat: Math.round(num(raw.satFat) * 10) / 10,
-      fiber: Math.round(num(raw.fiber) * 10) / 10,
-      sugar: Math.round(num(raw.sugar) * 10) / 10,
-      serving: String(raw.serving || '1 porción').slice(0, 60),
-      confidence: String(raw.confidence || 'medium'),
+      ...totalSummary,
+      confidence: String(raw?.confidence || 'medium'),
+      items,
     };
+
     return json({ ok: true, result });
   } catch (err) {
     return json({ error: 'gemini-failed', message: (err as Error).message }, 502);

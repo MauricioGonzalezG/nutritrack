@@ -2042,7 +2042,7 @@ body.modal-open {
 
 /* Filtro de datos visibles en alimentos */
 .nutrient-filter-card {
-  padding: 12px 16px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2055,48 +2055,115 @@ body.modal-open {
 }
 
 .nutrient-filter-title {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text);
 }
 
 .nutrient-filter-options {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-width: 100%;
 }
 
 .nutrient-check-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
+  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
   transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nutrient-check-chip:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text);
 }
 
 .nutrient-check-chip input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   accent-color: var(--accent);
   cursor: pointer;
 }
 
 .nutrient-check-chip:has(input:checked) {
-  background: rgba(94, 234, 212, 0.08);
-  border-color: rgba(94, 234, 212, 0.3);
-  color: var(--text-primary);
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Micro-etiquetas nutricionales por alimento */
+.entry-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+
+.entry-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.entry-tag-qty {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.entry-tag-p {
+  background: rgba(129, 140, 248, 0.14);
+  color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.3);
+}
+
+.entry-tag-c {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fef08a;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.entry-tag-g {
+  background: rgba(244, 114, 182, 0.14);
+  color: #fbcfe8;
+  border: 1px solid rgba(244, 114, 182, 0.3);
+}
+
+.entry-tag-sat {
+  background: rgba(249, 115, 22, 0.14);
+  color: #ffedd5;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.entry-tag-fibra {
+  background: rgba(52, 211, 153, 0.14);
+  color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.entry-tag-azucar {
+  background: rgba(56, 189, 248, 0.14);
+  color: #bae6fd;
+  border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
 .photo-icon {

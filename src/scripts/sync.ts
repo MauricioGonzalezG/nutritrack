@@ -1,12 +1,13 @@
 import {
   getChallengeState,
+  getCustomFoods,
   getEntries,
   getGoals,
   getLabs,
   getProfile,
   hydrateFromServer,
 } from './store';
-import type { ChallengeState, FoodEntry, Goals, LabResults, Profile } from './types';
+import type { ChallengeState, Food, FoodEntry, Goals, LabResults, Profile } from './types';
 
 /**
  * Sincronización con el servidor (Turso vía API routes).
@@ -56,6 +57,7 @@ interface StateResponse {
     goals?: Goals | null;
     challenges?: ChallengeState | null;
     labs?: LabResults | null;
+    customFoods?: Food[] | null;
   };
 }
 
@@ -77,6 +79,10 @@ async function uploadAllLocal(): Promise<void> {
     const labs = getLabs();
     if (labs) {
       await fetch('/api/state', { method: 'PUT', headers, body: JSON.stringify({ u, key: 'labs', value: labs }) });
+    }
+    const customFoods = getCustomFoods();
+    if (customFoods.length > 0) {
+      await fetch('/api/state', { method: 'PUT', headers, body: JSON.stringify({ u, key: 'customFoods', value: customFoods }) });
     }
     const entries = getEntries();
     for (let i = 0; i < entries.length; i += 20) {
@@ -103,6 +109,7 @@ async function reconcile(state: StateResponse): Promise<void> {
       state.data?.profile ?? null,
       state.data?.challenges ?? null,
       state.data?.labs ?? null,
+      state.data?.customFoods ?? null,
     );
   }
 }
@@ -162,6 +169,6 @@ export function pushDelete(id: string): void {
   post('/api/entries', 'DELETE', { u: getSyncCode(), id });
 }
 
-export function pushData(key: 'profile' | 'goals' | 'challenges' | 'labs', value: unknown): void {
+export function pushData(key: 'profile' | 'goals' | 'challenges' | 'labs' | 'customFoods', value: unknown): void {
   post('/api/state', 'PUT', { u: getSyncCode(), key, value });
 }

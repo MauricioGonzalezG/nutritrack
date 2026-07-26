@@ -3,6 +3,7 @@ import { FOODS, searchFoods } from './foods';
 import {
   addEntry,
   getChallengeState,
+  getCustomFoods,
   getDailySummaries,
   getDayTotals,
   getEntriesForDate,
@@ -485,21 +486,23 @@ function renderMeals(): void {
     const items = entries.length
       ? entries
           .map((e) => {
-            const parts: string[] = [`${e.quantity} × porción`];
             const qty = e.quantity;
-            if (filters.protein) parts.push(`P ${fmtMacro(e.protein * qty)}g`);
-            if (filters.carbs) parts.push(`C ${fmtMacro(e.carbs * qty)}g`);
-            if (filters.fat) parts.push(`G ${fmtMacro(e.fat * qty)}g`);
-            if (filters.satFat) parts.push(`G.Sat ${fmtMacro((e.satFat ?? 0) * qty)}g`);
-            if (filters.fiber) parts.push(`Fibra ${fmtMacro((e.fiber ?? 0) * qty)}g`);
-            if (filters.sugar) parts.push(`Azúcar ${fmtMacro((e.sugar ?? 0) * qty)}g`);
+            const tags: string[] = [
+              `<span class="entry-tag entry-tag-qty">${e.quantity} × porción</span>`
+            ];
+            if (filters.protein) tags.push(`<span class="entry-tag entry-tag-p">P ${fmtMacro(e.protein * qty)}g</span>`);
+            if (filters.carbs) tags.push(`<span class="entry-tag entry-tag-c">C ${fmtMacro(e.carbs * qty)}g</span>`);
+            if (filters.fat) tags.push(`<span class="entry-tag entry-tag-g">G ${fmtMacro(e.fat * qty)}g</span>`);
+            if (filters.satFat) tags.push(`<span class="entry-tag entry-tag-sat">G.Sat ${fmtMacro((e.satFat ?? 0) * qty)}g</span>`);
+            if (filters.fiber) tags.push(`<span class="entry-tag entry-tag-fibra">Fibra ${fmtMacro((e.fiber ?? 0) * qty)}g</span>`);
+            if (filters.sugar) tags.push(`<span class="entry-tag entry-tag-azucar">Azúcar ${fmtMacro((e.sugar ?? 0) * qty)}g</span>`);
 
             return `
         <li class="entry" data-id="${e.id}">
           <span class="entry-emoji">${e.emoji}</span>
           <div class="entry-info">
             <span class="entry-name">${esc(e.name)}</span>
-            <span class="entry-detail">${parts.join(' · ')}</span>
+            <div class="entry-detail-tags">${tags.join('')}</div>
           </div>
           <span class="entry-kcal">${fmt(e.calories * e.quantity)} kcal</span>
           <button class="icon-btn entry-delete" data-delete="${e.id}" aria-label="Eliminar ${esc(e.name)}">${ICONS.trash}</button>
@@ -1032,6 +1035,8 @@ function addSelectedPhotoItems(): void {
     pushEntry(entry);
   });
 
+  pushData('customFoods', getCustomFoods());
+
   closeModal();
   renderAll();
 }
@@ -1081,6 +1086,7 @@ function confirmCustom(): void {
       serving: '1 porción',
     });
     foodId = customFood.id;
+    pushData('customFoods', getCustomFoods());
   }
 
   const entry = addEntry({

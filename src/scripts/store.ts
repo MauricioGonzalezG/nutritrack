@@ -180,7 +180,7 @@ export function getDailySummaries(days = 7): { dateKey: string; totals: DayTotal
 
 /* ---------- Hidratación desde el servidor (sync) ---------- */
 
-export const STORAGE_KEYS = { ENTRIES_KEY, GOALS_KEY, PROFILE_KEY, CHALLENGES_KEY, LABS_KEY };
+export const STORAGE_KEYS = { ENTRIES_KEY, GOALS_KEY, PROFILE_KEY, CHALLENGES_KEY, LABS_KEY, CUSTOM_FOODS_KEY };
 
 export function hydrateFromServer(
   entries: FoodEntry[],
@@ -188,12 +188,14 @@ export function hydrateFromServer(
   profile: Profile | null,
   challenges: ChallengeState | null,
   labs: LabResults | null,
+  customFoods: Food[] | null = null,
 ): void {
   save(ENTRIES_KEY, entries);
   if (goals) save(GOALS_KEY, goals);
   if (profile) save(PROFILE_KEY, profile);
   if (challenges) save(CHALLENGES_KEY, challenges);
   if (labs) save(LABS_KEY, labs);
+  if (customFoods) save(CUSTOM_FOODS_KEY, customFoods);
   notify();
 }
 

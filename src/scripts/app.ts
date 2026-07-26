@@ -627,6 +627,15 @@ function teardownModalViewport(): void {
   });
 }
 
+function updateAnalyzeButtonState(): void {
+  const btn = document.querySelector<HTMLButtonElement>('#btn-analyze-photo');
+  if (!btn) return;
+  const textInput = document.querySelector<HTMLTextAreaElement>('#photo-text-input');
+  const desc = textInput?.value?.trim() || '';
+  const hasPhoto = photoSelected !== null;
+  btn.disabled = !hasPhoto && !desc;
+}
+
 function openModal(meal: MealType): void {
   modalMeal = meal;
   selectedFood = null;

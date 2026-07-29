@@ -34,6 +34,10 @@ import Layout from '../layouts/Layout.astro';
           <span class="bell-label">Recordar</span>
           <span class="bell-dot hidden" id="bell-dot"></span>
         </button>
+        <button class="btn-ghost" id="btn-metrics" aria-label="Ver métricas y exportar CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Métricas
+        </button>
         <button class="btn-ghost" id="btn-profile">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Mi perfil
@@ -527,7 +531,167 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </div>
 
+  <!-- ===== Modal: métricas, exportación y Asistente IA ===== -->
+  <div class="modal" id="metrics-modal" role="dialog" aria-modal="true" aria-labelledby="metrics-title">
+    <div class="modal-card metrics-modal-card">
+      <div class="modal-head">
+        <h2 id="metrics-title">📊 Métricas y Asistente IA</h2>
+        <button class="icon-btn" id="metrics-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Pestañas principales de Métricas vs Chatbot IA -->
+      <div class="metrics-main-tabs">
+        <button class="metrics-main-tab active" id="mtab-dashboard">
+          📊 Dashboard de Métricas
+        </button>
+        <button class="metrics-main-tab" id="mtab-chat">
+          🤖 Asistente IA (NutriBot)
+          <span class="chat-badge-spark">Gemini ⚡</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- VISTA 1: DASHBOARD DE MÉTRICAS -->
+        <div id="mview-dashboard">
+          <!-- Barra de controles y rango de fecha -->
+          <div class="metrics-controls-bar">
+            <div class="range-pills" id="metrics-range-pills">
+              <button class="range-pill active" data-preset="7d">Últimos 7 días</button>
+              <button class="range-pill" data-preset="30d">Últimos 30 días</button>
+              <button class="range-pill" data-preset="this-month">Este mes</button>
+              <button class="range-pill" data-preset="all">Histórico completo</button>
+              <button class="range-pill" data-preset="custom">Personalizado</button>
+            </div>
+
+            <div class="custom-range-box hidden" id="custom-range-inputs">
+              <span>Desde:</span>
+              <input type="date" id="metrics-start-date" />
+              <span>Hasta:</span>
+              <input type="date" id="metrics-end-date" />
+              <button class="btn-ghost btn-xs" id="btn-apply-custom-range">Aplicar</button>
+            </div>
+
+            <div class="csv-export-actions">
+              <button class="btn-csv-primary" id="btn-export-range-csv">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 1 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Descargar CSV (Rango)
+              </button>
+              <button class="btn-csv-ghost" id="btn-export-all-csv" title="Descargar todo el historial registrado">
+                📥 Exportar todo
+              </button>
+            </div>
+          </div>
+
+          <!-- Tarjetas KPI -->
+          <div class="metrics-kpi-grid" id="metrics-kpi-grid"></div>
+
+          <!-- Sección de gráfico de tendencias calóricas -->
+          <div class="metrics-section-title">
+            <span>📈 Tendencia de Calorías Diarias</span>
+            <span class="field-hint" id="metrics-chart-hint">Promedio en el periodo</span>
+          </div>
+          <div class="metrics-chart-box">
+            <div class="chart-svg-wrap" id="metrics-chart-wrap"></div>
+          </div>
+
+          <!-- Sección de desglose por tipo de comida -->
+          <div class="metrics-section-title">
+            <span>🍽️ Distribución por Comida</span>
+          </div>
+          <div class="meal-dist-grid" id="metrics-meal-dist"></div>
+
+          <!-- Tabla de detalle -->
+          <div class="metrics-section-title">
+            <span>📋 Registro Detallado del Periodo</span>
+          </div>
+          <div class="metrics-table-card">
+            <div class="table-responsive">
+              <table class="metrics-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Comida</th>
+                    <th>Alimento</th>
+                    <th>Cant.</th>
+                    <th>kcal</th>
+                    <th>Prot.</th>
+                    <th>Carb.</th>
+                    <th>Grasa</th>
+                    <th>G. Sat.</th>
+                    <th>Fibra</th>
+                    <th>Azúcar</th>
+                  </tr>
+                </thead>
+                <tbody id="metrics-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISTA 2: ASISTENTE IA (NUTRIBOT) -->
+        <div id="mview-chat" class="hidden chat-view-container">
+          <div class="chat-header-info">
+            <div class="bot-avatar">🥗</div>
+            <div>
+              <h3 class="bot-name">NutriBot — Asistente de Salud IA</h3>
+              <p class="bot-status">Analiza tus exámenes de sangre, perfil físico y consumo para guiarte en tu proceso.</p>
+            </div>
+          </div>
+
+          <!-- Historial de mensajes -->
+          <div class="chat-messages-container" id="chat-messages-container">
+            <div class="chat-bubble bot-bubble">
+              <span class="bubble-avatar">🥗</span>
+              <div class="bubble-content">
+                <b>¡Hola! Soy NutriBot 🤖</b>
+                <p>Tengo acceso a tus exámenes de laboratorio, perfil y métricas de consumo. ¿En qué te gustaría enfocar tu análisis hoy?</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preguntas sugeridas (Chips) -->
+          <div class="chat-quick-chips" id="chat-quick-chips">
+            <button class="chat-chip" data-prompt="¿Cómo voy según mis exámenes de sangre y perfil actual?">
+              🩸 Análisis de mis exámenes
+            </button>
+            <button class="chat-chip" data-prompt="¿Cuál es mi proyección a 1 mes si mantengo este nivel de consumo y hábitos?">
+              🚀 Proyección a 1 mes
+            </button>
+            <button class="chat-chip" data-prompt="¿Qué alimentos debería aumentar o reducir para mejorar mi nivel de fibra y controlar la grasa saturada?">
+              🥑 Alimentos sugeridos
+            </button>
+            <button class="chat-chip" data-prompt="¿Cómo están mis macronutrientes y qué recomendaciones me das para optimizarlos?">
+              🎯 Optimizar macronutrientes
+            </button>
+          </div>
+
+          <!-- Estado de carga -->
+          <div class="chat-loading hidden" id="chat-loading">
+            <span class="spinner"></span>
+            <span>NutriBot está analizando tus métricas y exámenes…</span>
+          </div>
+
+          <!-- Formulario de entrada -->
+          <form class="chat-input-row" id="chat-form">
+            <input
+              type="text"
+              id="chat-input"
+              placeholder="Hazle una pregunta a NutriBot sobre tu proceso o proyección..."
+              autocomplete="off"
+            />
+            <button type="submit" class="btn-primary" id="btn-send-chat">
+              Enviar 🚀
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     import '../scripts/app';
   </script>
 </Layout>
+

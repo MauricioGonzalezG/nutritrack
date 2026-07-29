@@ -6,6 +6,7 @@ import {
   getCustomFoods,
   getDailySummaries,
   getDayTotals,
+  getEntries,
   getEntriesForDate,
   getEntriesForMeal,
   getGoals,
@@ -22,6 +23,14 @@ import {
   todayKey,
   toggleChallenge,
 } from './store';
+import {
+  calculatePeriodSummary,
+  downloadCSV,
+  generateEntriesCSV,
+  getDateRangeFromPreset,
+  type DateRangePreset,
+  type PeriodSummary,
+} from './metrics';
 import {
   ACTIVITY_LABELS,
   FOCUS_LABELS,
@@ -91,6 +100,13 @@ let photoSelected: File | null = null;
 let detectedPhotoItems: GeminiItem[] = [];
 let detectedPhotoSummary: GeminiAnalysis | null = null;
 let bannerDismissed = localStorage.getItem('nutritrack:banner-dismissed') === '1';
+
+let metricsPreset: DateRangePreset = '7d';
+let metricsCustomStart = '';
+let metricsCustomEnd = '';
+
+let activeMetricsTab: 'dashboard' | 'chat' = 'dashboard';
+let chatMessages: Array<{ role: 'user' | 'model'; content: string }> = [];
 
 interface NutrientFilters {
   protein: boolean;
@@ -886,7 +902,9 @@ async function analyzePhoto(): Promise<void> {
 
     if (photoSelected) {
       const compressed = await compressImage(photoSelected).catch(() => photoSelected);
-      form.append('image', compressed, 'photo.jpg');
+      if (compressed) {
+        form.append('image', compressed, 'photo.jpg');
+      }
     }
 
     const res = await fetch('/api/analyze-photo', { method: 'POST', body: form });
@@ -1422,10 +1440,427 @@ function seedDemoData(): void {
 }
 
 /* ==================================================================
+   Métricas y Exportación CSV
+   ================================================================== */
+
+function openMetrics(): void {
+  $('#metrics-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+
+  if (!metricsCustomStart || !metricsCustomEnd) {
+    const today = new Date();
+    const ago30 = new Date();
+    ago30.setDate(today.getDate() - 30);
+    metricsCustomStart = toDateKey(ago30);
+    metricsCustomEnd = toDateKey(today);
+    ($('#metrics-start-date') as HTMLInputElement).value = metricsCustomStart;
+    ($('#metrics-end-date') as HTMLInputElement).value = metricsCustomEnd;
+  }
+
+  renderMetrics();
+}
+
+function closeMetrics(): void {
+  $('#metrics-modal').classList.remove('open');
+  if (
+    !$('#modal').classList.contains('open') &&
+    !$('#settings-modal').classList.contains('open') &&
+    !$('#profile-modal').classList.contains('open') &&
+    !$('#labs-modal').classList.contains('open') &&
+    !$('#reminders-modal').classList.contains('open')
+  ) {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+function renderMetricsChart(summary: PeriodSummary, userGoals: Goals): string {
+  const points = summary.dailyPoints;
+  if (!points || points.length === 0) {
+    return '<p class="field-hint" style="text-align:center; padding: 20px;">No hay registros en este periodo</p>';
+  }
+
+  const maxCal = Math.max(...points.map((p) => p.totals.calories), userGoals.calories, 100);
+  const svgWidth = Math.max(points.length * 42, 480);
+  const svgHeight = 170;
+  const paddingBottom = 28;
+  const paddingTop = 20;
+  const chartHeight = svgHeight - paddingBottom - paddingTop;
+  const barWidth = Math.max(Math.min(svgWidth / points.length - 8, 28), 8);
+
+  const goalY = svgHeight - paddingBottom - (userGoals.calories / maxCal) * chartHeight;
+
+  let barsHTML = '';
+  points.forEach((p, idx) => {
+    const x = idx * (svgWidth / points.length) + (svgWidth / points.length - barWidth) / 2;
+    const h = (p.totals.calories / maxCal) * chartHeight;
+    const y = svgHeight - paddingBottom - h;
+    const isGoalMet = Math.abs(p.totals.calories - userGoals.calories) <= userGoals.calories * 0.15;
+    const barColor =
+      p.totals.calories === 0
+        ? 'rgba(255,255,255,0.06)'
+        : isGoalMet
+        ? 'url(#barGradientGreen)'
+        : p.totals.calories > userGoals.calories
+        ? '#fb7185'
+        : '#818cf8';
+
+    barsHTML += `
+      <g class="chart-bar-group">
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${Math.max(h, 2)}" rx="4" fill="${barColor}">
+          <title>${p.dateLabel}: ${fmt(p.totals.calories)} kcal</title>
+        </rect>
+        <text x="${x + barWidth / 2}" y="${svgHeight - 8}" font-size="10" fill="#8b949e" text-anchor="middle">${p.dateLabel}</text>
+      </g>
+    `;
+  });
+
+  return `
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="barGradientGreen" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#34d399" />
+          <stop offset="100%" stop-color="#a3e635" />
+        </linearGradient>
+      </defs>
+      <line x1="0" y1="${goalY}" x2="${svgWidth}" y2="${goalY}" stroke="#5b636b" stroke-dasharray="4 4" stroke-width="1.5" />
+      <text x="${svgWidth - 5}" y="${goalY - 4}" font-size="10" fill="#a3e635" text-anchor="end">Meta: ${fmt(userGoals.calories)} kcal</text>
+      ${barsHTML}
+    </svg>
+  `;
+}
+
+function renderMetrics(): void {
+  const allEntries = getEntries();
+  const userGoals = getGoals();
+  const range = getDateRangeFromPreset(metricsPreset, metricsCustomStart, metricsCustomEnd);
+  const summary = calculatePeriodSummary(allEntries, range, userGoals);
+
+  // 1. Actualizar pills activas y caja de rango personalizado
+  const pills = document.querySelectorAll<HTMLButtonElement>('#metrics-range-pills .range-pill');
+  pills.forEach((pill) => {
+    if (pill.dataset.preset === metricsPreset) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+
+  const customBox = $('#custom-range-inputs');
+  if (metricsPreset === 'custom') {
+    customBox.classList.remove('hidden');
+  } else {
+    customBox.classList.add('hidden');
+  }
+
+  // 2. Tarjetas KPI
+  const kpiGrid = $('#metrics-kpi-grid');
+  kpiGrid.innerHTML = `
+    <div class="metrics-kpi-card" style="--kpi-color: #34d399;">
+      <span class="kpi-title">Calorías Diarias</span>
+      <span class="kpi-value">${fmt(summary.avgCalories)} <span class="kpi-unit">kcal/día</span></span>
+      <span class="kpi-sub">Objetivo: ${fmt(userGoals.calories)} kcal</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #818cf8;">
+      <span class="kpi-title">Proteínas</span>
+      <span class="kpi-value">${fmtMacro(summary.avgProtein)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">${summary.macroPercentages.proteinPct}% de kcal tot.</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #fbbf24;">
+      <span class="kpi-title">Carbohidratos</span>
+      <span class="kpi-value">${fmtMacro(summary.avgCarbs)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">${summary.macroPercentages.carbsPct}% de kcal tot.</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #f472b6;">
+      <span class="kpi-title">Grasas Totales</span>
+      <span class="kpi-value">${fmtMacro(summary.avgFat)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">${summary.macroPercentages.fatPct}% de kcal tot.</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #fb7185;">
+      <span class="kpi-title">Grasa Saturada</span>
+      <span class="kpi-value">${fmtMacro(summary.avgSatFat)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">Total: ${fmtMacro(summary.totalSatFat)} g</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #a3e635;">
+      <span class="kpi-title">Fibra</span>
+      <span class="kpi-value">${fmtMacro(summary.avgFiber)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">Total: ${fmtMacro(summary.totalFiber)} g</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #38bdf8;">
+      <span class="kpi-title">Azúcares</span>
+      <span class="kpi-value">${fmtMacro(summary.avgSugar)} <span class="kpi-unit">g/día</span></span>
+      <span class="kpi-sub">Total: ${fmtMacro(summary.totalSugar)} g</span>
+    </div>
+    <div class="metrics-kpi-card" style="--kpi-color: #c084fc;">
+      <span class="kpi-title">Meta Cumplida</span>
+      <span class="kpi-value">${summary.goalCompletionRate}% <span class="kpi-unit">de días</span></span>
+      <span class="kpi-sub">${summary.activeDaysCount} días con registros</span>
+    </div>
+  `;
+
+  // 3. Gráfico de tendencias
+  const chartWrap = $('#metrics-chart-wrap');
+  chartWrap.innerHTML = renderMetricsChart(summary, userGoals);
+  $('#metrics-chart-hint').textContent = `${summary.daysCount} días evaluados (${summary.activeDaysCount} activos)`;
+
+  // 4. Distribución por comidas
+  const mealDistGrid = $('#metrics-meal-dist');
+  mealDistGrid.innerHTML = summary.mealDistributions
+    .map(
+      (m) => `
+    <div class="meal-dist-card">
+      <div class="meal-dist-head">
+        <span>${m.icon} ${m.label}</span>
+        <span>${fmt(m.calories)} kcal (${m.percentage}%)</span>
+      </div>
+      <div class="meal-dist-bar">
+        <div class="meal-dist-fill" style="width: ${m.percentage}%;"></div>
+      </div>
+    </div>
+  `
+    )
+    .join('');
+
+  // 5. Tabla de detalle de alimentos del periodo
+  const tbody = $('#metrics-table-body');
+  if (summary.entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding: 24px; color: var(--text-muted);">No se encontraron alimentos en el periodo seleccionado.</td></tr>';
+  } else {
+    const sortedEntries = [...summary.entries].sort((a, b) => b.date.localeCompare(a.date));
+    tbody.innerHTML = sortedEntries
+      .slice(0, 100)
+      .map((e) => {
+        const q = e.quantity || 1;
+        return `
+        <tr>
+          <td><b>${e.date}</b></td>
+          <td><span class="badge-meal">${MEAL_ICONS[e.meal] || ''} ${MEAL_LABELS[e.meal] || e.meal}</span></td>
+          <td>${e.emoji || '🍽️'} ${esc(e.name)}</td>
+          <td>${q}</td>
+          <td><b>${fmt(e.calories * q)}</b></td>
+          <td>${fmtMacro(e.protein * q)} g</td>
+          <td>${fmtMacro(e.carbs * q)} g</td>
+          <td>${fmtMacro(e.fat * q)} g</td>
+          <td>${fmtMacro((e.satFat ?? 0) * q)} g</td>
+          <td>${fmtMacro((e.fiber ?? 0) * q)} g</td>
+          <td>${fmtMacro((e.sugar ?? 0) * q)} g</td>
+        </tr>
+      `;
+      })
+      .join('');
+  }
+}
+
+function handleExportRangeCSV(): void {
+  const allEntries = getEntries();
+  const userGoals = getGoals();
+  const range = getDateRangeFromPreset(metricsPreset, metricsCustomStart, metricsCustomEnd);
+  const summary = calculatePeriodSummary(allEntries, range, userGoals);
+  const csvStr = generateEntriesCSV(summary.entries);
+  const filename = `nutritrack_metricas_${range.startDate}_a_${range.endDate}.csv`;
+  downloadCSV(filename, csvStr);
+}
+
+function handleExportAllCSV(): void {
+  const allEntries = getEntries();
+  const csvStr = generateEntriesCSV(allEntries);
+  downloadCSV('nutritrack_registro_alimentos_completo.csv', csvStr);
+}
+
+/* ---------- Chatbot IA NutriBot ---------- */
+
+function switchMetricsMainTab(tab: 'dashboard' | 'chat'): void {
+  activeMetricsTab = tab;
+  const btnDash = $('#mtab-dashboard');
+  const btnChat = $('#mtab-chat');
+  const viewDash = $('#mview-dashboard');
+  const viewChat = $('#mview-chat');
+
+  if (tab === 'dashboard') {
+    btnDash.classList.add('active');
+    btnChat.classList.remove('active');
+    viewDash.classList.remove('hidden');
+    viewChat.classList.add('hidden');
+  } else {
+    btnDash.classList.remove('active');
+    btnChat.classList.add('active');
+    viewDash.classList.add('hidden');
+    viewChat.classList.remove('hidden');
+    setTimeout(() => ($('#chat-input') as HTMLInputElement).focus(), 100);
+  }
+}
+
+function getChatContext(): any {
+  const profile = getProfile();
+  const labs = getLabs();
+  const goals = getGoals();
+  const allEntries = getEntries();
+  const range = getDateRangeFromPreset(metricsPreset, metricsCustomStart, metricsCustomEnd);
+  const summary = calculatePeriodSummary(allEntries, range, goals);
+
+  const recentEntries = [...allEntries]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 20)
+    .map((e) => ({
+      date: e.date,
+      meal: MEAL_LABELS[e.meal] || e.meal,
+      name: e.name,
+      quantity: e.quantity,
+      calories: Math.round(e.calories * (e.quantity || 1)),
+      protein: Math.round(e.protein * (e.quantity || 1) * 10) / 10,
+      carbs: Math.round(e.carbs * (e.quantity || 1) * 10) / 10,
+      fat: Math.round(e.fat * (e.quantity || 1) * 10) / 10,
+      satFat: Math.round((e.satFat ?? 0) * (e.quantity || 1) * 10) / 10,
+      fiber: Math.round((e.fiber ?? 0) * (e.quantity || 1) * 10) / 10,
+      sugar: Math.round((e.sugar ?? 0) * (e.quantity || 1) * 10) / 10,
+    }));
+
+  return {
+    profile: profile
+      ? {
+          sexo: profile.sex,
+          edad: profile.age,
+          alturaCm: profile.heightCm,
+          pesoKg: profile.weightKg,
+          actividad: profile.activity,
+          enfoqueSalud: profile.focus,
+        }
+      : null,
+    labs: labs
+      ? {
+          fechaExamen: labs.date,
+          colesterolTotal: labs.totalCholesterol,
+          LDL: labs.ldl,
+          HDL: labs.hdl,
+          triglicéridos: labs.triglycerides,
+          indiceAterogénico: labs.atherogenicIndex,
+        }
+      : null,
+    goals,
+    metricsSummary: {
+      periodoPreset: range.preset,
+      fechaInicio: range.startDate,
+      fechaFin: range.endDate,
+      promedioCalorias: summary.avgCalories,
+      promedioProteinas: summary.avgProtein,
+      promedioCarbohidratos: summary.avgCarbs,
+      promedioGrasasTotales: summary.avgFat,
+      promedioGrasaSaturada: summary.avgSatFat,
+      promedioFibra: summary.avgFiber,
+      promedioAzucar: summary.avgSugar,
+      porcentajeCumplimientoMeta: summary.goalCompletionRate,
+      diasActivos: summary.activeDaysCount,
+    },
+    recentEntries,
+  };
+}
+
+function renderChatMessageBubble(role: 'user' | 'model', content: string): void {
+  const container = $('#chat-messages-container');
+  const isUser = role === 'user';
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${isUser ? 'user-bubble' : 'bot-bubble'}`;
+
+  const formattedText = esc(content)
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+
+  bubble.innerHTML = `
+    <span class="bubble-avatar">${isUser ? '👤' : '🥗'}</span>
+    <div class="bubble-content">
+      <p>${formattedText}</p>
+    </div>
+  `;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChatMessage(userText: string): Promise<void> {
+  const prompt = userText.trim();
+  if (!prompt) return;
+
+  const inputEl = $('#chat-input') as HTMLInputElement;
+  const sendBtn = $('#btn-send-chat') as HTMLButtonElement;
+
+  inputEl.value = '';
+  inputEl.disabled = true;
+  sendBtn.disabled = true;
+
+  chatMessages.push({ role: 'user', content: prompt });
+  renderChatMessageBubble('user', prompt);
+
+  $('#chat-loading').classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: chatMessages,
+        context: getChatContext(),
+      }),
+    });
+
+    const data = await res.json();
+    $('#chat-loading').classList.add('hidden');
+
+    if (data.error || !data.answer) {
+      const errMsg = data.error || 'No se pudo obtener respuesta de NutriBot.';
+      renderChatMessageBubble('model', `⚠️ Error: ${errMsg}`);
+    } else {
+      chatMessages.push({ role: 'model', content: data.answer });
+      renderChatMessageBubble('model', data.answer);
+    }
+  } catch (err: any) {
+    $('#chat-loading').classList.add('hidden');
+    renderChatMessageBubble('model', `⚠️ Hubo un problema de conexión: ${err.message || err}`);
+  } finally {
+    inputEl.disabled = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+/* ==================================================================
    Eventos
    ================================================================== */
 
 function bindEvents(): void {
+  // Eventos de Métricas y CSV
+  $('#btn-metrics').addEventListener('click', openMetrics);
+  $('#metrics-close').addEventListener('click', closeMetrics);
+
+  $('#mtab-dashboard').addEventListener('click', () => switchMetricsMainTab('dashboard'));
+  $('#mtab-chat').addEventListener('click', () => switchMetricsMainTab('chat'));
+
+  $('#chat-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const text = ($('#chat-input') as HTMLInputElement).value;
+    void sendChatMessage(text);
+  });
+
+  $('#chat-quick-chips').addEventListener('click', (ev) => {
+    const chip = (ev.target as HTMLElement).closest<HTMLButtonElement>('.chat-chip');
+    if (!chip || !chip.dataset.prompt) return;
+    void sendChatMessage(chip.dataset.prompt);
+  });
+
+  $('#metrics-range-pills').addEventListener('click', (ev) => {
+    const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>('.range-pill');
+    if (!btn || !btn.dataset.preset) return;
+    metricsPreset = btn.dataset.preset as DateRangePreset;
+    renderMetrics();
+  });
+
+  $('#btn-apply-custom-range').addEventListener('click', () => {
+    metricsCustomStart = ($('#metrics-start-date') as HTMLInputElement).value;
+    metricsCustomEnd = ($('#metrics-end-date') as HTMLInputElement).value;
+    metricsPreset = 'custom';
+    renderMetrics();
+  });
+
+  $('#btn-export-range-csv').addEventListener('click', handleExportRangeCSV);
+  $('#btn-export-all-csv').addEventListener('click', handleExportAllCSV);
   // Filtros de datos visibles en alimentos
   const bindFilter = (id: string, key: keyof NutrientFilters) => {
     const el = document.querySelector<HTMLInputElement>(id);
@@ -1600,6 +2035,7 @@ function bindEvents(): void {
     ['#profile-modal', closeProfile],
     ['#labs-modal', closeLabsModal],
     ['#reminders-modal', closeReminders],
+    ['#metrics-modal', closeMetrics],
   ] as const) {
     $(id).addEventListener('click', (ev) => {
       if (ev.target === ev.currentTarget) close();
@@ -1612,6 +2048,7 @@ function bindEvents(): void {
       closeProfile();
       closeLabsModal();
       closeReminders();
+      closeMetrics();
     }
   });
 

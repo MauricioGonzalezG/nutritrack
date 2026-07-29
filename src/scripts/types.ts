@@ -86,6 +86,18 @@ export interface LabResults {
   atherogenicIndex?: number; // CT / HDL
 }
 
+/* ---------- Datos de Huawei Health ---------- */
+
+export interface DailyActivityData {
+  activeCalories: number; // kcal quemadas activas (ej. GT 2 Pro)
+  steps: number; // pasos registrados
+  lastSyncedAt?: string; // fecha/hora de última sincronización
+}
+
+/** Mapa de fecha (YYYY-MM-DD) a actividad física registrada */
+export type HuaweiSyncData = Record<string, DailyActivityData>;
+
+
 export const MEAL_LABELS: Record<MealType, string> = {
   desayuno: 'Desayuno',
   almuerzo: 'Almuerzo',

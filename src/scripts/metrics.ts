@@ -1,4 +1,4 @@
-import type { DayTotals, FoodEntry, Goals, MealType } from './types';
+import type { DailyActivityData, DayTotals, FoodEntry, Goals, HuaweiSyncData, MealType } from './types';
 import { MEAL_LABELS, MEAL_ICONS } from './types';
 import { toDateKey } from './store';
 
@@ -15,7 +15,9 @@ export interface DayMetricPoint {
   dateLabel: string; // Ej: "15 Oct" o "Lun"
   totals: DayTotals;
   entriesCount: number;
+  huaweiActivity?: DailyActivityData | null;
 }
+
 
 export interface MealDistribution {
   meal: MealType;
@@ -53,7 +55,10 @@ export interface PeriodSummary {
   mealDistributions: MealDistribution[];
   dailyPoints: DayMetricPoint[];
   entries: FoodEntry[];
+  totalActiveBurn: number;
+  totalSteps: number;
 }
+
 
 /** Formatea una fecha YYYY-MM-DD a un texto legible e.g. "12 Jul" */
 export function formatDateLabel(dateStr: string): string {
@@ -124,7 +129,8 @@ export function generateDateSequence(startDate: string, endDate: string): string
 export function calculatePeriodSummary(
   allEntries: FoodEntry[],
   range: DateRange,
-  userGoals: Goals
+  userGoals: Goals,
+  huaweiSyncData: HuaweiSyncData = {}
 ): PeriodSummary {
   const filteredEntries = filterEntriesByRange(allEntries, range);
 
@@ -152,6 +158,8 @@ export function calculatePeriodSummary(
   let totalSatFat = 0;
   let totalFiber = 0;
   let totalSugar = 0;
+  let totalActiveBurn = 0;
+  let totalSteps = 0;
   let activeDaysCount = 0;
   let daysOnGoalCount = 0;
 
@@ -170,6 +178,12 @@ export function calculatePeriodSummary(
       totals.satFat += (e.satFat ?? 0) * q;
       totals.fiber += (e.fiber ?? 0) * q;
       totals.sugar += (e.sugar ?? 0) * q;
+    }
+
+    const hwActivity = huaweiSyncData[dKey] ?? null;
+    if (hwActivity) {
+      totalActiveBurn += hwActivity.activeCalories || 0;
+      totalSteps += hwActivity.steps || 0;
     }
 
     if (dayEntries.length > 0) {
@@ -195,6 +209,7 @@ export function calculatePeriodSummary(
       dateLabel: formatDateLabel(dKey),
       totals,
       entriesCount: dayEntries.length,
+      huaweiActivity: hwActivity,
     });
   }
 
@@ -267,7 +282,10 @@ export function calculatePeriodSummary(
     mealDistributions,
     dailyPoints,
     entries: filteredEntries,
+    totalActiveBurn,
+    totalSteps,
   };
+
 }
 
 /** Escapa campos para formato CSV */

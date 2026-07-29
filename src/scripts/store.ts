@@ -1,4 +1,5 @@
-import type { ChallengeState, DayTotals, Food, FoodEntry, Goals, LabResults, MealType, Profile } from './types';
+import type { ChallengeState, DailyActivityData, DayTotals, Food, FoodEntry, Goals, HuaweiSyncData, LabResults, MealType, Profile } from './types';
+
 
 const ENTRIES_KEY = 'nutritrack:entries';
 const GOALS_KEY = 'nutritrack:goals';
@@ -6,6 +7,7 @@ const PROFILE_KEY = 'nutritrack:profile';
 const CHALLENGES_KEY = 'nutritrack:challenges';
 const LABS_KEY = 'nutritrack:labs';
 const CUSTOM_FOODS_KEY = 'nutritrack:custom_foods';
+const HUAWEI_DATA_KEY = 'nutritrack:huawei_data';
 
 export const DEFAULT_GOALS: Goals = {
   calories: 2000,
@@ -178,9 +180,32 @@ export function getDailySummaries(days = 7): { dateKey: string; totals: DayTotal
   return result;
 }
 
+/* ---------- Datos de Huawei Health ---------- */
+
+export function getHuaweiData(): HuaweiSyncData {
+  return load<HuaweiSyncData>(HUAWEI_DATA_KEY, {});
+}
+
+export function getHuaweiDataForDate(dateKey: string): DailyActivityData | null {
+  const data = getHuaweiData();
+  return data[dateKey] ?? null;
+}
+
+export function setHuaweiData(data: HuaweiSyncData): void {
+  save(HUAWEI_DATA_KEY, data);
+  notify();
+}
+
+export function updateHuaweiDayData(dateKey: string, dayData: DailyActivityData): void {
+  const current = getHuaweiData();
+  current[dateKey] = dayData;
+  save(HUAWEI_DATA_KEY, current);
+  notify();
+}
+
 /* ---------- Hidratación desde el servidor (sync) ---------- */
 
-export const STORAGE_KEYS = { ENTRIES_KEY, GOALS_KEY, PROFILE_KEY, CHALLENGES_KEY, LABS_KEY, CUSTOM_FOODS_KEY };
+export const STORAGE_KEYS = { ENTRIES_KEY, GOALS_KEY, PROFILE_KEY, CHALLENGES_KEY, LABS_KEY, CUSTOM_FOODS_KEY, HUAWEI_DATA_KEY };
 
 export function hydrateFromServer(
   entries: FoodEntry[],
@@ -189,6 +214,7 @@ export function hydrateFromServer(
   challenges: ChallengeState | null,
   labs: LabResults | null,
   customFoods: Food[] | null = null,
+  huaweiData: HuaweiSyncData | null = null,
 ): void {
   save(ENTRIES_KEY, entries);
   if (goals) save(GOALS_KEY, goals);
@@ -196,8 +222,10 @@ export function hydrateFromServer(
   if (challenges) save(CHALLENGES_KEY, challenges);
   if (labs) save(LABS_KEY, labs);
   if (customFoods) save(CUSTOM_FOODS_KEY, customFoods);
+  if (huaweiData) save(HUAWEI_DATA_KEY, huaweiData);
   notify();
 }
+
 
 /* ---------- Alimentos personalizados ---------- */
 

@@ -3,11 +3,12 @@ import {
   getCustomFoods,
   getEntries,
   getGoals,
+  getHuaweiData,
   getLabs,
   getProfile,
   hydrateFromServer,
 } from './store';
-import type { ChallengeState, Food, FoodEntry, Goals, LabResults, Profile } from './types';
+import type { ChallengeState, Food, FoodEntry, Goals, HuaweiSyncData, LabResults, Profile } from './types';
 
 /**
  * Sincronización con el servidor (Turso vía API routes).
@@ -58,6 +59,7 @@ interface StateResponse {
     challenges?: ChallengeState | null;
     labs?: LabResults | null;
     customFoods?: Food[] | null;
+    huaweiData?: HuaweiSyncData | null;
   };
 }
 
@@ -83,6 +85,10 @@ async function uploadAllLocal(): Promise<void> {
     const customFoods = getCustomFoods();
     if (customFoods.length > 0) {
       await fetch('/api/state', { method: 'PUT', headers, body: JSON.stringify({ u, key: 'customFoods', value: customFoods }) });
+    }
+    const huaweiData = getHuaweiData();
+    if (Object.keys(huaweiData).length > 0) {
+      await fetch('/api/state', { method: 'PUT', headers, body: JSON.stringify({ u, key: 'huaweiData', value: huaweiData }) });
     }
     const entries = getEntries();
     for (let i = 0; i < entries.length; i += 20) {
@@ -110,6 +116,7 @@ async function reconcile(state: StateResponse): Promise<void> {
       state.data?.challenges ?? null,
       state.data?.labs ?? null,
       state.data?.customFoods ?? null,
+      state.data?.huaweiData ?? null,
     );
   }
 }
@@ -169,6 +176,7 @@ export function pushDelete(id: string): void {
   post('/api/entries', 'DELETE', { u: getSyncCode(), id });
 }
 
-export function pushData(key: 'profile' | 'goals' | 'challenges' | 'labs' | 'customFoods', value: unknown): void {
+export function pushData(key: 'profile' | 'goals' | 'challenges' | 'labs' | 'customFoods' | 'huaweiData', value: unknown): void {
   post('/api/state', 'PUT', { u: getSyncCode(), key, value });
 }
+

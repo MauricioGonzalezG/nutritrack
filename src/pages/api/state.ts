@@ -74,7 +74,8 @@ export const PUT: APIRoute = async ({ request }) => {
   }
   const { u, key, value } = body;
   if (!u || !validCode(u)) return json({ error: 'invalid-code' }, 400);
-  if (!key || !['profile', 'goals', 'challenges', 'labs', 'customFoods'].includes(key)) return json({ error: 'invalid-key' }, 400);
+  if (!key || !['profile', 'goals', 'challenges', 'labs', 'customFoods', 'huaweiData', 'huaweiTokens'].includes(key)) return json({ error: 'invalid-key' }, 400);
+
 
   await ensureSchema(db);
   await db.execute({

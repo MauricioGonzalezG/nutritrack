@@ -95,8 +95,29 @@ import Layout from '../layouts/Layout.astro';
           </div>
         </section>
 
+        <!-- ===== Card: Huawei Watch GT 2 Pro ===== -->
+        <section class="card huawei-widget-card hidden" id="huawei-widget-card">
+          <div class="card-title-row">
+            <h2 class="card-title">⌚ Actividad Huawei Watch</h2>
+            <button class="btn-ghost btn-xs" id="btn-widget-sync-huawei">🔄 Sincronizar</button>
+          </div>
+          <div class="huawei-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">
+            <div style="background: rgba(230,0,18,0.08); border-radius: 12px; padding: 0.75rem; text-align: center;">
+              <span style="font-size: 1.25rem;">🔥</span>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #e60012;" id="hw-widget-calories">0 kcal</div>
+              <span style="font-size: 0.75rem; opacity: 0.8;">Calorías activas</span>
+            </div>
+            <div style="background: rgba(52,211,153,0.08); border-radius: 12px; padding: 0.75rem; text-align: center;">
+              <span style="font-size: 1.25rem;">👟</span>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #10b981;" id="hw-widget-steps">0</div>
+              <span style="font-size: 0.75rem; opacity: 0.8;">Pasos registrados</span>
+            </div>
+          </div>
+        </section>
+
         <section class="card">
           <h2 class="card-title">Macronutrientes</h2>
+
           <div id="macros"></div>
         </section>
 
@@ -526,7 +547,27 @@ import Layout from '../layouts/Layout.astro';
           <p class="form-error" id="link-error"></p>
         </div>
 
-        <button class="btn-primary" id="btn-save-profile">Guardar perfil</button>
+        <div class="sync-section huawei-section" style="margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+          <h3 class="sync-title">⌚ Conexión Huawei Watch GT 2 Pro</h3>
+          <p class="sync-status" id="huawei-status">Comprobando conexión con Huawei Health...</p>
+          <div class="sync-link-row" style="margin-top: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+            <button class="btn-primary" id="btn-connect-huawei" style="background: linear-gradient(135deg, #c7000b, #e60012);">
+              <span>🔗 Conectar Huawei Health</span>
+            </button>
+            <button class="btn-ghost hidden" id="btn-sync-huawei">
+              🔄 Sincronizar hoy
+            </button>
+            <button class="btn-ghost hidden" id="btn-disconnect-huawei" style="color: var(--color-bad);">
+              Desvincular
+            </button>
+          </div>
+          <p class="field-hint" id="huawei-hint" style="margin-top: 0.5rem;">
+            Sincroniza calorías activas quemadas y pasos desde tu Huawei Watch GT 2 Pro mediante la API Cloud de Huawei Health Kit.
+          </p>
+        </div>
+
+        <button class="btn-primary" id="btn-save-profile" style="margin-top: 1rem;">Guardar perfil</button>
+
       </div>
     </div>
   </div>

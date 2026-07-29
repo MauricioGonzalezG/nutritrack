@@ -1,5 +1,5 @@
 import type { GeminiAnalysis, GeminiItem } from '../pages/api/analyze-photo';
-import { FOODS, searchFoods } from './foods';
+import { FOODS, findFood, getAllFoods, searchFoods } from './foods';
 import {
   addEntry,
   getChallengeState,
@@ -559,8 +559,8 @@ function renderPlan(): void {
   const profile = getProfile();
   const focus = effectiveFocus(profile, labs);
 
-  const good = FOODS.filter((f) => foodHeartRating(f) === 'good');
-  const limit = FOODS.filter((f) => foodHeartRating(f) === 'limit');
+  const good = getAllFoods().filter((f) => foodHeartRating(f) === 'good');
+  const limit = getAllFoods().filter((f) => foodHeartRating(f) === 'limit');
 
   $('#plan-good').innerHTML = good.map((f) => `<span class="chip good">${f.emoji} ${esc(f.name)}</span>`).join('');
   $('#plan-limit').innerHTML = limit.map((f) => `<span class="chip limit">${f.emoji} ${esc(f.name)}</span>`).join('');
@@ -1401,7 +1401,7 @@ function seedDemoData(): void {
     ['yogur-griego', 'snacks', 1],
   ];
   for (const [foodId, meal, qty] of demo) {
-    const f = FOODS.find((x) => x.id === foodId);
+    const f = findFood(foodId);
     if (!f) continue;
     addEntry({
       foodId: f.id,
@@ -1503,7 +1503,7 @@ function bindEvents(): void {
   $('#food-list').addEventListener('click', (ev) => {
     const btn = (ev.target as HTMLElement).closest<HTMLElement>('[data-food]');
     if (!btn) return;
-    selectedFood = FOODS.find((f) => f.id === btn.dataset.food) ?? null;
+    selectedFood = findFood(btn.dataset.food!) ?? null;
     quantity = 1;
     renderModal();
   });

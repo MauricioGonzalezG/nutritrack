@@ -27,7 +27,9 @@ export const GET: APIRoute = async ({ request, redirect }) => {
     'profile',
     'https://www.huawei.com/healthkit/calories.read',
     'https://www.huawei.com/healthkit/activity.read',
+    'https://www.huawei.com/healthkit/steps.read',
   ].join(' ');
+
 
 
   const authUrl = new URL('https://oauth-login.cloud.huawei.com/oauth2/v3/authorize');

@@ -63,6 +63,47 @@ async function refreshHuaweiToken(
   }
 }
 
+const REGIONAL_HEALTH_BASE_URLS = [
+  'https://health-api-ap.cloud.huawei.com', // Asia-Pacific & Latin America
+  'https://health-api-eu.cloud.huawei.com', // Europe & Global
+  'https://health-api.cloud.huawei.com',    // Global / China
+  'https://health-api-ru.cloud.huawei.com', // Russia
+];
+
+async function fetchHuaweiRegionalApi(
+  path: string,
+  options: RequestInit = {},
+  accessToken: string
+): Promise<{ ok: boolean; status: number; data?: any; text?: string; baseUrl?: string }> {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  let lastStatus = 404;
+  let lastText = '';
+
+  for (const baseUrl of REGIONAL_HEALTH_BASE_URLS) {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+      if (res.ok) {
+        const data = await res.json();
+        return { ok: true, status: res.status, data, baseUrl };
+      }
+      lastStatus = res.status;
+      lastText = await res.text();
+      if (res.status !== 404) {
+        return { ok: false, status: res.status, text: lastText, baseUrl };
+      }
+    } catch (err) {
+      lastText = String(err);
+    }
+  }
+
+  return { ok: false, status: lastStatus, text: lastText };
+}
+
 /** POST /api/huawei/sync?u=CODE  body: { date?: 'YYYY-MM-DD' } */
 export const POST: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
@@ -116,76 +157,58 @@ export const POST: APIRoute = async ({ request }) => {
   const endTime = localStart + 36 * 3600 * 1000;
 
   let devices: string[] = [];
-  try {
-    const collectorsRes = await fetch(`https://health-api.cloud.huawei.com/healthkit/v1/dataCollectors`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (collectorsRes.ok) {
-      const collectorsData = await collectorsRes.json();
-      const list = collectorsData?.dataCollector || collectorsData?.dataCollectors || collectorsData?.data || [];
-      if (Array.isArray(list)) {
-        for (const col of list) {
-          const devName = col.deviceInfo?.modelName || col.deviceInfo?.devName || col.collectorName || col.dataCollectorId || '';
-          if (devName && !devices.includes(devName)) {
-            devices.push(devName);
-          }
+  const collectorsRes = await fetchHuaweiRegionalApi('/healthkit/v1/dataCollectors', { method: 'GET' }, accessToken);
+  if (collectorsRes.ok && collectorsRes.data) {
+    const list = collectorsRes.data.dataCollector || collectorsRes.data.dataCollectors || collectorsRes.data.data || [];
+    if (Array.isArray(list)) {
+      for (const col of list) {
+        const devName = col.deviceInfo?.modelName || col.deviceInfo?.devName || col.collectorName || col.dataCollectorId || '';
+        if (devName && !devices.includes(devName)) {
+          devices.push(devName);
         }
       }
     }
-  } catch {
-    /* opcional */
   }
 
   let activeCalories = 0;
   let steps = 0;
   let rawResponseInfo = '';
 
-  try {
-    const summaryRes = await fetch(
-      `https://health-api.cloud.huawei.com/healthkit/v1/sampleSet:dailySummary?startTime=${startTime}&endTime=${endTime}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+  const summaryRes = await fetchHuaweiRegionalApi(
+    `/healthkit/v1/sampleSet:dailySummary?startTime=${startTime}&endTime=${endTime}`,
+    { method: 'GET' },
+    accessToken
+  );
 
-    if (summaryRes.ok) {
-      const summaryData = await summaryRes.json();
-      const sampleSets = summaryData?.sampleSets || summaryData?.data || [];
-      if (Array.isArray(sampleSets)) {
-        for (const set of sampleSets) {
-          const typeName = String(set.dataTypeName || set.dataType || '').toLowerCase();
-          const points = set.samplePoints || set.sampleSet || set.data || [];
-          for (const sample of points) {
-            const firstVal = sample.value?.[0] || sample.value || {};
-            const val = Number(firstVal.fpValue ?? firstVal.intVal ?? firstVal.val ?? 0);
-            if (typeName.includes('calories') || typeName.includes('burnt')) {
-              activeCalories += val;
-            }
-            if (typeName.includes('steps')) {
-              steps += val;
-            }
+  if (summaryRes.ok && summaryRes.data) {
+    rawResponseInfo = `Servidor: ${summaryRes.baseUrl?.replace('https://', '')}`;
+    const sampleSets = summaryRes.data.sampleSets || summaryRes.data.data || [];
+    if (Array.isArray(sampleSets)) {
+      for (const set of sampleSets) {
+        const typeName = String(set.dataTypeName || set.dataType || '').toLowerCase();
+        const points = set.samplePoints || set.sampleSet || set.data || [];
+        for (const sample of points) {
+          const firstVal = sample.value?.[0] || sample.value || {};
+          const val = Number(firstVal.fpValue ?? firstVal.intVal ?? firstVal.val ?? 0);
+          if (typeName.includes('calories') || typeName.includes('burnt')) {
+            activeCalories += val;
+          }
+          if (typeName.includes('steps')) {
+            steps += val;
           }
         }
       }
-    } else {
-      rawResponseInfo = `HTTP ${summaryRes.status}: ${await summaryRes.text()}`;
     }
-  } catch (err) {
-    console.error('Error fetching Huawei Health summary:', err);
+  } else {
+    rawResponseInfo = `HTTP ${summaryRes.status}: ${summaryRes.text || 'Sin respuesta'}`;
   }
 
   // Fallback con POST /sampleSets/read si el resumen vino en 0
   if (activeCalories === 0 && steps === 0) {
-    try {
-      const readRes = await fetch(`https://health-api.cloud.huawei.com/healthkit/v1/sampleSets/read`, {
+    const readRes = await fetchHuaweiRegionalApi(
+      '/healthkit/v1/sampleSets/read',
+      {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           sampleSet: [
             { dataTypeName: 'com.huawei.continuous.steps.delta', startTime, endTime },
@@ -193,27 +216,26 @@ export const POST: APIRoute = async ({ request }) => {
             { dataTypeName: 'com.huawei.continuous.steps.total', startTime, endTime },
           ],
         }),
-      });
-      if (readRes.ok) {
-        const readData = await readRes.json();
-        const groupList = readData?.group || readData?.sampleSets || [];
-        if (Array.isArray(groupList)) {
-          for (const g of groupList) {
-            const sets = g.sampleSet || [g];
-            for (const set of sets) {
-              const typeName = String(set.dataTypeName || '').toLowerCase();
-              for (const sample of set.samplePoints || []) {
-                const firstVal = sample.value?.[0] || {};
-                const val = Number(firstVal.fpValue ?? firstVal.intVal ?? 0);
-                if (typeName.includes('calories') || typeName.includes('burnt')) activeCalories += val;
-                if (typeName.includes('steps')) steps += val;
-              }
+      },
+      accessToken
+    );
+
+    if (readRes.ok && readRes.data) {
+      const groupList = readRes.data.group || readRes.data.sampleSets || [];
+      if (Array.isArray(groupList)) {
+        for (const g of groupList) {
+          const sets = g.sampleSet || [g];
+          for (const set of sets) {
+            const typeName = String(set.dataTypeName || '').toLowerCase();
+            for (const sample of set.samplePoints || []) {
+              const firstVal = sample.value?.[0] || {};
+              const val = Number(firstVal.fpValue ?? firstVal.intVal ?? 0);
+              if (typeName.includes('calories') || typeName.includes('burnt')) activeCalories += val;
+              if (typeName.includes('steps')) steps += val;
             }
           }
         }
       }
-    } catch {
-      /* opcional */
     }
   }
 

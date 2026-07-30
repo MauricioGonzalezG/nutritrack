@@ -34,7 +34,8 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('scope', scopes);
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('state', JSON.stringify({ u }));
+  authUrl.searchParams.set('state', encodeURIComponent(u || 'default'));
 
   return redirect(authUrl.toString(), 302);
+
 };

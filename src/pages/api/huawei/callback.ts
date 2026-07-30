@@ -12,12 +12,18 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   let u = '';
   if (rawState) {
     try {
-      const parsed = JSON.parse(rawState);
-      u = parsed.u || '';
+      const decoded = decodeURIComponent(rawState);
+      if (decoded.startsWith('{')) {
+        const parsed = JSON.parse(decoded);
+        u = parsed.u || '';
+      } else {
+        u = decoded === 'default' ? '' : decoded;
+      }
     } catch {
-      u = rawState;
+      u = rawState === 'default' ? '' : rawState;
     }
   }
+
 
   const huaweiErr = url.searchParams.get('error');
   if (huaweiErr) {

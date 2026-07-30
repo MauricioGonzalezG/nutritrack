@@ -155,88 +155,79 @@ export const POST: APIRoute = async ({ request }) => {
   const localStart = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || new Date().getDate(), 0, 0, 0, 0).getTime();
   const startTime = localStart - 12 * 3600 * 1000;
   const endTime = localStart + 36 * 3600 * 1000;
-
-  let devices: string[] = [];
-  const collectorsRes = await fetchHuaweiRegionalApi('/healthkit/v1/dataCollectors', { method: 'GET' }, accessToken);
-  if (collectorsRes.ok && collectorsRes.data) {
-    const list = collectorsRes.data.dataCollector || collectorsRes.data.dataCollectors || collectorsRes.data.data || [];
-    if (Array.isArray(list)) {
-      for (const col of list) {
-        const devName = col.deviceInfo?.modelName || col.deviceInfo?.devName || col.collectorName || col.dataCollectorId || '';
-        if (devName && !devices.includes(devName)) {
-          devices.push(devName);
-        }
-      }
-    }
-  }
-
   let activeCalories = 0;
   let steps = 0;
+  let devices: string[] = [];
   let rawResponseInfo = '';
 
-  const summaryRes = await fetchHuaweiRegionalApi(
-    `/healthkit/v1/sampleSet:dailySummary?startTime=${startTime}&endTime=${endTime}`,
-    { method: 'GET' },
-    accessToken
-  );
+  const BASE_URL = 'https://health-api.cloud.huawei.com';
 
-  if (summaryRes.ok && summaryRes.data) {
-    rawResponseInfo = `Servidor: ${summaryRes.baseUrl?.replace('https://', '')}`;
-    const sampleSets = summaryRes.data.sampleSets || summaryRes.data.data || [];
-    if (Array.isArray(sampleSets)) {
-      for (const set of sampleSets) {
-        const typeName = String(set.dataTypeName || set.dataType || '').toLowerCase();
-        const points = set.samplePoints || set.sampleSet || set.data || [];
-        for (const sample of points) {
-          const firstVal = sample.value?.[0] || sample.value || {};
-          const val = Number(firstVal.fpValue ?? firstVal.intVal ?? firstVal.val ?? 0);
-          if (typeName.includes('calories') || typeName.includes('burnt')) {
-            activeCalories += val;
+  try {
+    const collectorsRes = await fetch(`${BASE_URL}/healthkit/v1/dataCollectors`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (collectorsRes.ok) {
+      const collectorsData = await collectorsRes.json();
+      const list = collectorsData?.dataCollector || collectorsData?.dataCollectors || collectorsData?.data || [];
+      rawResponseInfo = `DataCollectors OK (${Array.isArray(list) ? list.length : 0} colectores encontrados)`;
+
+      if (Array.isArray(list)) {
+        for (const col of list) {
+          const devName = col.deviceInfo?.modelName || col.deviceInfo?.devName || col.collectorName || col.dataCollectorId || '';
+          if (devName && !devices.includes(devName)) {
+            devices.push(devName);
           }
-          if (typeName.includes('steps')) {
-            steps += val;
-          }
-        }
-      }
-    }
-  } else {
-    rawResponseInfo = `HTTP ${summaryRes.status}: ${summaryRes.text || 'Sin respuesta'}`;
-  }
 
-  // Fallback con POST /sampleSets/read si el resumen vino en 0
-  if (activeCalories === 0 && steps === 0) {
-    const readRes = await fetchHuaweiRegionalApi(
-      '/healthkit/v1/sampleSets/read',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          sampleSet: [
-            { dataTypeName: 'com.huawei.continuous.steps.delta', startTime, endTime },
-            { dataTypeName: 'com.huawei.continuous.calories.burnt', startTime, endTime },
-            { dataTypeName: 'com.huawei.continuous.steps.total', startTime, endTime },
-          ],
-        }),
-      },
-      accessToken
-    );
-
-    if (readRes.ok && readRes.data) {
-      const groupList = readRes.data.group || readRes.data.sampleSets || [];
-      if (Array.isArray(groupList)) {
-        for (const g of groupList) {
-          const sets = g.sampleSet || [g];
-          for (const set of sets) {
-            const typeName = String(set.dataTypeName || '').toLowerCase();
-            for (const sample of set.samplePoints || []) {
-              const firstVal = sample.value?.[0] || {};
-              const val = Number(firstVal.fpValue ?? firstVal.intVal ?? 0);
-              if (typeName.includes('calories') || typeName.includes('burnt')) activeCalories += val;
-              if (typeName.includes('steps')) steps += val;
+          const colId = col.dataCollectorId;
+          const typeName = String(col.dataTypeName || colId || '').toLowerCase();
+          if (colId && (typeName.includes('steps') || typeName.includes('calories') || typeName.includes('burnt'))) {
+            try {
+              const samplesRes = await fetch(
+                `${BASE_URL}/healthkit/v1/dataCollectors/${encodeURIComponent(colId)}/sampleSets?startTime=${startTime}&endTime=${endTime}`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+              );
+              if (samplesRes.ok) {
+                const sampleSetData = await samplesRes.json();
+                const points = sampleSetData?.samplePoints || sampleSetData?.sampleSet || [];
+                for (const pt of points) {
+                  const firstVal = pt.value?.[0] || pt.value || {};
+                  const val = Number(firstVal.fpValue ?? firstVal.intVal ?? firstVal.val ?? 0);
+                  if (typeName.includes('calories') || typeName.includes('burnt')) activeCalories += val;
+                  if (typeName.includes('steps')) steps += val;
+                }
+              }
+            } catch {
+              /* opcional */
             }
           }
         }
       }
+    } else {
+      rawResponseInfo = `HTTP ${collectorsRes.status}: ${await collectorsRes.text()}`;
     }
+  } catch (err) {
+    rawResponseInfo = `Error de red: ${String(err)}`;
+  }
+
+  // Consulta complementaria a activityRecords
+  try {
+    const actRes = await fetch(
+      `${BASE_URL}/healthkit/v1/activityRecords?startTime=${startTime}&endTime=${endTime}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (actRes.ok) {
+      const actData = await actRes.json();
+      const records = actData?.activityRecord || actData?.records || [];
+      if (Array.isArray(records)) {
+        for (const r of records) {
+          if (r.activeCalories) activeCalories += Number(r.activeCalories);
+          if (r.steps) steps += Number(r.steps);
+        }
+      }
+    }
+  } catch {
+    /* opcional */
   }
 
   const resultData = {

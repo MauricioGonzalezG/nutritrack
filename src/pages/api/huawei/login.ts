@@ -7,9 +7,10 @@ export const GET: APIRoute = async ({ request, redirect }) => {
   const url = new URL(request.url);
   const u = url.searchParams.get('u') || '';
 
-  const clientId = import.meta.env.HUAWEI_CLIENT_ID as string | undefined;
+  const clientId = (import.meta.env.HUAWEI_CLIENT_ID as string | undefined)?.trim();
   const redirectUri =
-    (import.meta.env.HUAWEI_REDIRECT_URI as string | undefined) || `${url.origin}/api/huawei/callback`;
+    (import.meta.env.HUAWEI_REDIRECT_URI as string | undefined)?.trim() || `${url.origin}/api/huawei/callback`;
+
 
   if (!clientId) {
     return new Response(

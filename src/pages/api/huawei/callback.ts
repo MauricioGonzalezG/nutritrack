@@ -19,14 +19,21 @@ export const GET: APIRoute = async ({ request, redirect }) => {
     }
   }
 
+  const huaweiErr = url.searchParams.get('error');
+  if (huaweiErr) {
+    const desc = url.searchParams.get('error_description') || huaweiErr;
+    return redirect(`/?huawei_error=${encodeURIComponent(desc)}`, 302);
+  }
+
   if (!code) {
     return redirect(`/?huawei_error=no_code`, 302);
   }
 
-  const clientId = import.meta.env.HUAWEI_CLIENT_ID as string | undefined;
-  const clientSecret = import.meta.env.HUAWEI_CLIENT_SECRET as string | undefined;
+  const clientId = (import.meta.env.HUAWEI_CLIENT_ID as string | undefined)?.trim();
+  const clientSecret = (import.meta.env.HUAWEI_CLIENT_SECRET as string | undefined)?.trim();
   const redirectUri =
-    (import.meta.env.HUAWEI_REDIRECT_URI as string | undefined) || `${url.origin}/api/huawei/callback`;
+    (import.meta.env.HUAWEI_REDIRECT_URI as string | undefined)?.trim() || `${url.origin}/api/huawei/callback`;
+
 
   if (!clientId || !clientSecret) {
     return redirect(`/?huawei_error=missing_credentials`, 302);

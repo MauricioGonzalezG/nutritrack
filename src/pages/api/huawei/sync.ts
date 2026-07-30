@@ -109,8 +109,11 @@ export const POST: APIRoute = async ({ request }) => {
     accessToken = refreshed;
   }
 
-  const startTime = new Date(`${dateStr}T00:00:00.000Z`).getTime();
-  const endTime = new Date(`${dateStr}T23:59:59.999Z`).getTime();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  // Rango amplio que cubre la zona horaria local del usuario (-12h a +12h)
+  const localStart = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || new Date().getDate(), 0, 0, 0, 0).getTime();
+  const startTime = localStart - 12 * 3600 * 1000;
+  const endTime = localStart + 36 * 3600 * 1000;
 
   let activeCalories = 0;
   let steps = 0;
@@ -128,27 +131,30 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (summaryRes.ok) {
       const summaryData = await summaryRes.json();
-      if (summaryData && Array.isArray(summaryData.sampleSets)) {
-        for (const set of summaryData.sampleSets) {
-          if (
-            set.dataTypeName === 'com.huawei.continuous.calories.burnt' ||
-            set.dataTypeName === 'com.huawei.instantaneous.calories.bmm'
-          ) {
-            for (const sample of set.samplePoints || []) {
-              activeCalories += Number(sample.value?.[0]?.fpValue || sample.value?.[0]?.intVal || 0);
+      const sampleSets = summaryData?.sampleSets || summaryData?.data || [];
+      if (Array.isArray(sampleSets)) {
+        for (const set of sampleSets) {
+          const typeName = String(set.dataTypeName || set.dataType || '').toLowerCase();
+          const points = set.samplePoints || set.sampleSet || set.data || [];
+          for (const sample of points) {
+            const firstVal = sample.value?.[0] || sample.value || {};
+            const val = Number(firstVal.fpValue ?? firstVal.intVal ?? firstVal.val ?? 0);
+            if (typeName.includes('calories') || typeName.includes('burnt')) {
+              activeCalories += val;
             }
-          }
-          if (set.dataTypeName === 'com.huawei.continuous.steps.delta') {
-            for (const sample of set.samplePoints || []) {
-              steps += Number(sample.value?.[0]?.intVal || sample.value?.[0]?.fpValue || 0);
+            if (typeName.includes('steps')) {
+              steps += val;
             }
           }
         }
       }
+    } else {
+      console.warn('Huawei Health API error:', summaryRes.status, await summaryRes.text());
     }
   } catch (err) {
     console.error('Error fetching Huawei Health summary:', err);
   }
+
 
   const resultData = {
     date: dateStr,

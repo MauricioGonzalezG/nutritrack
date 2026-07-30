@@ -1390,7 +1390,9 @@ async function checkHuaweiStatus(): Promise<void> {
       btnConnect.classList.add('hidden');
       btnSync.classList.remove('hidden');
       btnDisconnect.classList.remove('hidden');
+      void syncHuaweiDataToday(false);
     } else {
+
       isHuaweiConnectedState = false;
       statusEl.textContent = '⚪ Huawei Health no está vinculado.';
       btnConnect.classList.remove('hidden');

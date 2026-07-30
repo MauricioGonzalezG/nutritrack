@@ -115,8 +115,30 @@ export const POST: APIRoute = async ({ request }) => {
   const startTime = localStart - 12 * 3600 * 1000;
   const endTime = localStart + 36 * 3600 * 1000;
 
+  let devices: string[] = [];
+  try {
+    const collectorsRes = await fetch(`https://health-api.cloud.huawei.com/healthkit/v1/dataCollectors`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (collectorsRes.ok) {
+      const collectorsData = await collectorsRes.json();
+      const list = collectorsData?.dataCollector || collectorsData?.dataCollectors || collectorsData?.data || [];
+      if (Array.isArray(list)) {
+        for (const col of list) {
+          const devName = col.deviceInfo?.modelName || col.deviceInfo?.devName || col.collectorName || col.dataCollectorId || '';
+          if (devName && !devices.includes(devName)) {
+            devices.push(devName);
+          }
+        }
+      }
+    }
+  } catch {
+    /* opcional */
+  }
+
   let activeCalories = 0;
   let steps = 0;
+  let rawResponseInfo = '';
 
   try {
     const summaryRes = await fetch(
@@ -149,19 +171,61 @@ export const POST: APIRoute = async ({ request }) => {
         }
       }
     } else {
-      console.warn('Huawei Health API error:', summaryRes.status, await summaryRes.text());
+      rawResponseInfo = `HTTP ${summaryRes.status}: ${await summaryRes.text()}`;
     }
   } catch (err) {
     console.error('Error fetching Huawei Health summary:', err);
   }
 
+  // Fallback con POST /sampleSets/read si el resumen vino en 0
+  if (activeCalories === 0 && steps === 0) {
+    try {
+      const readRes = await fetch(`https://health-api.cloud.huawei.com/healthkit/v1/sampleSets/read`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sampleSet: [
+            { dataTypeName: 'com.huawei.continuous.steps.delta', startTime, endTime },
+            { dataTypeName: 'com.huawei.continuous.calories.burnt', startTime, endTime },
+            { dataTypeName: 'com.huawei.continuous.steps.total', startTime, endTime },
+          ],
+        }),
+      });
+      if (readRes.ok) {
+        const readData = await readRes.json();
+        const groupList = readData?.group || readData?.sampleSets || [];
+        if (Array.isArray(groupList)) {
+          for (const g of groupList) {
+            const sets = g.sampleSet || [g];
+            for (const set of sets) {
+              const typeName = String(set.dataTypeName || '').toLowerCase();
+              for (const sample of set.samplePoints || []) {
+                const firstVal = sample.value?.[0] || {};
+                const val = Number(firstVal.fpValue ?? firstVal.intVal ?? 0);
+                if (typeName.includes('calories') || typeName.includes('burnt')) activeCalories += val;
+                if (typeName.includes('steps')) steps += val;
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      /* opcional */
+    }
+  }
 
   const resultData = {
     date: dateStr,
     activeCalories: Math.round(activeCalories),
     steps: Math.round(steps),
+    devices,
+    rawResponseInfo,
     lastSyncedAt: new Date().toISOString(),
   };
+
 
   const dataRs = await db.execute({
     sql: 'SELECT value FROM user_data WHERE user_code = ? AND key = ?',

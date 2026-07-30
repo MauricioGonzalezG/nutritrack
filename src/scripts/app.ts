@@ -1431,8 +1431,13 @@ async function syncHuaweiDataToday(showAlert = false): Promise<void> {
       });
       renderAll();
       if (showAlert) {
-        alert(`✅ Sincronizado con Huawei Health:\n🔥 Calorías activas: ${json.data.activeCalories} kcal\n👟 Pasos: ${json.data.steps}`);
+        const devs = Array.isArray(json.data.devices) && json.data.devices.length > 0
+          ? `\n📱 Dispositivos detectados en Huawei Cloud: ${json.data.devices.join(', ')}`
+          : '\n⚠️ No se hallaron colectores de datos registrados en la cuenta.';
+        const diag = json.data.rawResponseInfo ? `\nℹ️ Info API: ${json.data.rawResponseInfo}` : '';
+        alert(`✅ Diagnóstico Huawei Health:\n🔥 Calorías activas: ${json.data.activeCalories} kcal\n👟 Pasos: ${json.data.steps}${devs}${diag}`);
       }
+
     } else if (showAlert) {
       alert(`⚠️ ${json.message || 'No se obtuvieron datos nuevos.'}`);
     }

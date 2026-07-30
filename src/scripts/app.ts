@@ -279,22 +279,25 @@ function renderRing(): void {
   $('#stat-remaining').textContent = fmt(Math.max(remaining, 0));
 }
 
+let isHuaweiConnectedState = false;
+
 function renderHuaweiWidget(): void {
   const card = $('#huawei-widget-card');
   if (!card) return;
   const dateKey = toDateKey(selectedDate);
   const hwData = getHuaweiDataForDate(dateKey);
 
-  if (hwData && (hwData.activeCalories > 0 || hwData.steps > 0)) {
+  if (isHuaweiConnectedState || (hwData && (hwData.activeCalories > 0 || hwData.steps > 0))) {
     card.classList.remove('hidden');
     const calEl = $('#hw-widget-calories');
     const stepsEl = $('#hw-widget-steps');
-    if (calEl) calEl.textContent = `${fmt(hwData.activeCalories)} kcal`;
-    if (stepsEl) stepsEl.textContent = `${fmt(hwData.steps)}`;
+    if (calEl) calEl.textContent = `${fmt(hwData?.activeCalories || 0)} kcal`;
+    if (stepsEl) stepsEl.textContent = `${fmt(hwData?.steps || 0)}`;
   } else {
     card.classList.add('hidden');
   }
 }
+
 
 
 function renderMacros(): void {
@@ -1381,26 +1384,30 @@ async function checkHuaweiStatus(): Promise<void> {
     if (!res.ok) throw new Error();
     const data = await res.json();
     if (data.connected) {
+      isHuaweiConnectedState = true;
       const dateStr = data.linkedAt ? new Date(data.linkedAt).toLocaleDateString('es-ES') : '';
       statusEl.textContent = `🟢 Conectado con Huawei Health ${dateStr ? `(vinculado: ${dateStr})` : ''}`;
       btnConnect.classList.add('hidden');
       btnSync.classList.remove('hidden');
       btnDisconnect.classList.remove('hidden');
     } else {
+      isHuaweiConnectedState = false;
       statusEl.textContent = '⚪ Huawei Health no está vinculado.';
       btnConnect.classList.remove('hidden');
       btnSync.classList.add('hidden');
       btnDisconnect.classList.add('hidden');
     }
   } catch {
+    isHuaweiConnectedState = false;
     statusEl.textContent = '⚪ Huawei Health no configurado (requiere variables de entorno de Huawei).';
     btnConnect.classList.remove('hidden');
     btnSync.classList.add('hidden');
     btnDisconnect.classList.add('hidden');
   }
+  renderHuaweiWidget();
 }
 
-async function syncHuaweiDataToday(): Promise<void> {
+async function syncHuaweiDataToday(showAlert = false): Promise<void> {
   const code = getSyncCode();
   const dateKey = toDateKey(selectedDate);
   try {
@@ -1409,7 +1416,10 @@ async function syncHuaweiDataToday(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date: dateKey }),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (showAlert) alert('⚠️ No se pudieron obtener los datos. Verifica la conexión con el servidor.');
+      return;
+    }
     const json = await res.json();
     if (json.ok && json.data) {
       updateHuaweiDayData(dateKey, {
@@ -1418,9 +1428,15 @@ async function syncHuaweiDataToday(): Promise<void> {
         lastSyncedAt: json.data.lastSyncedAt,
       });
       renderAll();
+      if (showAlert) {
+        alert(`✅ Sincronizado con Huawei Health:\n🔥 Calorías activas: ${json.data.activeCalories} kcal\n👟 Pasos: ${json.data.steps}`);
+      }
+    } else if (showAlert) {
+      alert(`⚠️ ${json.message || 'No se obtuvieron datos nuevos.'}`);
     }
   } catch (err) {
     console.error('[NutriTrack] Error al sincronizar con Huawei:', err);
+    if (showAlert) alert('⚠️ Error al conectar con el servidor.');
   }
 }
 
@@ -1429,7 +1445,7 @@ function handleHuaweiOAuthResponse(): void {
   if (params.has('huawei')) {
     if (params.get('huawei') === 'connected') {
       alert('✅ ¡Tu Huawei Watch GT 2 Pro / Huawei Health se ha conectado correctamente!');
-      void syncHuaweiDataToday();
+      void syncHuaweiDataToday(true);
     }
     window.history.replaceState({}, document.title, window.location.pathname);
   } else if (params.has('huawei_error')) {
@@ -1438,6 +1454,7 @@ function handleHuaweiOAuthResponse(): void {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
 }
+
 
 
 function openProfile(): void {
@@ -2220,7 +2237,7 @@ function bindEvents(): void {
   $('#btn-sync-huawei').addEventListener('click', async () => {
     const statusEl = $('#huawei-status');
     if (statusEl) statusEl.textContent = '🔄 Sincronizando datos de hoy...';
-    await syncHuaweiDataToday();
+    await syncHuaweiDataToday(true);
     await checkHuaweiStatus();
   });
   $('#btn-disconnect-huawei').addEventListener('click', async () => {
@@ -2235,8 +2252,9 @@ function bindEvents(): void {
     renderAll();
   });
   $('#btn-widget-sync-huawei').addEventListener('click', async () => {
-    await syncHuaweiDataToday();
+    await syncHuaweiDataToday(true);
   });
+
 }
 
 /* ==================================================================

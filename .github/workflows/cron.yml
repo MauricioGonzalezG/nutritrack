@@ -5,8 +5,6 @@ name: NutriTrack reminders
 # más de 2 invocaciones/día en cron jobs, así que el horario vive aquí.
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
